@@ -4,7 +4,13 @@ import sys
 from io import StringIO
 import tempfile
 import os
-
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from io import BytesIO
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
