@@ -254,6 +254,228 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+# PDF Generation Functions
+def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
+    """Generate professional PDF for School Brief"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceAfter=6,
+        alignment=TA_CENTER
+    )
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceBefore=12,
+        spaceAfter=8,
+        bold=True
+    )
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#1f2937'),
+        spaceAfter=6,
+        leading=14
+    )
+    
+    # Posture icons
+    posture_icons = {
+        'STABLE': '✓',
+        'CALIBRATE': '⚠',
+        'INTERVENE': '⚡',
+        'ESCALATE': '🚨'
+    }
+    icon = posture_icons.get(posture, '•')
+    # Header
+st.markdown("# 📊 Discipline Decision Brief Analyzer")
+    # Header
+    story.append(Paragraph("📊 Discipline Decision Brief", title_style))
+    story.append(Paragraph("School Brief — Principal-Facing Analysis", subtitle_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Posture callout box
+    posture_data = [[f"{icon} Decision Posture: {posture}"]]
+    posture_table = Table(posture_data, colWidths=[6.5*inch])
+    posture_color = {
+        'STABLE': colors.HexColor('#d1fae5'),
+        'CALIBRATE': colors.HexColor('#fef3c7'),
+        'INTERVENE': colors.HexColor('#fed7aa'),
+        'ESCALATE': colors.HexColor('#fecaca')
+    }.get(posture, colors.HexColor('#f3f4f6'))
+    
+    posture_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), posture_color),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 14),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+    ]))
+    story.append(posture_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Parse report sections
+    lines = school_brief_text.split('\n')
+    current_section = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line or '═' in line or '─' in line:
+            continue
+        
+        # Section headers (all caps, long)
+        if line.isupper() and len(line) > 10:
+            # Flush previous section
+            if current_section:
+                for content_line in current_section:
+                    story.append(Paragraph(content_line, body_style))
+                current_section = []
+            story.append(Spacer(1, 0.15*inch))
+            story.append(Paragraph(line, heading_style))
+        else:
+            # Regular content
+            if 'Decision Posture:' in line or 'Overall System State:' in line:
+                story.append(Paragraph(f"<b>{line}</b>", body_style))
+            elif any(keyword in line for keyword in ['Total Incidents:', 'minutes', 'days', 'STABLE', 'CALIBRATE', 'INTERVENE', 'ESCALATE']):
+                story.append(Paragraph(f"<b>{line}</b>", body_style))
+            else:
+                current_section.append(line)
+    
+    # Flush final section
+    if current_section:
+        for content_line in current_section:
+            story.append(Paragraph(content_line, body_style))
+    
+    # Footer
+    story.append(Spacer(1, 0.4*inch))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("Powered by Empower52 | www.empower52.com", footer_style))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+def generate_district_tea_pdf(district_report_text, uploaded_filename):
+    """Generate professional PDF for District TEA Report"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceAfter=6,
+        alignment=TA_CENTER
+    )
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#10b981'),
+        spaceBefore=12,
+        spaceAfter=8,
+        bold=True
+    )
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#1f2937'),
+        spaceAfter=6,
+        leading=14
+    )
+    
+    # Header
+    story.append(Paragraph("📋 District TEA Report", title_style))
+    story.append(Paragraph("Texas Education Agency Compliance Report", subtitle_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Parse report sections
+    lines = district_report_text.split('\n')
+    current_section = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line or '═' in line or '─' in line:
+            continue
+        
+        # Section headers
+        if line.isupper() and len(line) > 10:
+            # Flush previous section
+            if current_section:
+                for content_line in current_section:
+                    story.append(Paragraph(content_line, body_style))
+                current_section = []
+            story.append(Spacer(1, 0.15*inch))
+            story.append(Paragraph(line, heading_style))
+        else:
+            # Highlight codes and percentages
+            if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
+                story.append(Paragraph(f"<b>{line}</b>", body_style))
+            else:
+                current_section.append(line)
+    
+    # Flush final section
+    if current_section:
+        for content_line in current_section:
+            story.append(Paragraph(content_line, body_style))
+    
+    # Footer
+    story.append(Spacer(1, 0.4*inch))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("Powered by Empower52 | www.empower52.com", footer_style))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 # Header
 st.markdown("# 📊 Discipline Decision Brief Analyzer")
