@@ -638,7 +638,7 @@ if uploaded_file is not None:
                 if section_content:
                     st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                 
-                # Download button
+                # Download PDF button
                 st.markdown("<br>", unsafe_allow_html=True)
                 pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_file.name)
                 st.download_button(
@@ -680,7 +680,7 @@ if uploaded_file is not None:
                     if section_content:
                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                     
-                    # Download button
+                    # Download PDF button
                     st.markdown("<br>", unsafe_allow_html=True)
                     pdf_buffer = generate_district_tea_pdf(district_report, uploaded_file.name)
                     st.download_button(
