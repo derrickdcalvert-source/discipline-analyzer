@@ -637,16 +637,15 @@ if uploaded_file is not None:
                 # Flush remaining content
                 if section_content:
                     st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
-                
-                # Download button
-                st.markdown("<br>", unsafe_allow_html=True)
+               # Generate and download PDF
+                pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_file.name)
                 st.download_button(
-                    label="📥 Download School Brief (Plain Text)",
-                    data=school_brief,
-                    file_name=f"{uploaded_file.name.split('.')[0]}_SCHOOL_BRIEF.txt",
-                    mime="text/plain",
+                    label="📥 Download School Brief (PDF)",
+                    data=pdf_buffer,
+                    file_name=f"{uploaded_file.name.split('.')[0]}_SCHOOL_BRIEF.pdf",
+                    mime="application/pdf",
                     use_container_width=True
-                )
+                ) 
             
             with tab2:
                 if STATE_MODE == "TEXAS_TEA":
@@ -678,16 +677,16 @@ if uploaded_file is not None:
                     # Flush remaining content
                     if section_content:
                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
-                    
-                    # Download button
-                    st.markdown("<br>", unsafe_allow_html=True)
+                   # Generate and download PDF
+                    pdf_buffer = generate_district_tea_pdf(district_report, uploaded_file.name)
                     st.download_button(
-                        label="📥 Download District Report (Plain Text)",
-                        data=district_report,
-                        file_name=f"{uploaded_file.name.split('.')[0]}_DISTRICT_TEA_REPORT.txt",
-                        mime="text/plain",
+                        label="📥 Download District Report (PDF)",
+                        data=pdf_buffer,
+                        file_name=f"{uploaded_file.name.split('.')[0]}_DISTRICT_TEA_REPORT.pdf",
+                        mime="application/pdf",
                         use_container_width=True
-                    )
+                    ) 
+                   
                 else:
                     st.info("District TEA Report only available in Texas mode")
     except Exception as e:
