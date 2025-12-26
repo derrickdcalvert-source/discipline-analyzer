@@ -374,15 +374,46 @@ if uploaded_file is not None:
             tab1, tab2 = st.tabs(["📄 School Brief", "📋 District TEA Report"])
             
             with tab1:
-                st.text_area(
-                    "School Brief (Principal-Facing)",
-                    school_brief,
-                    height=400,
-                    label_visibility="collapsed"
-                )
+                # Parse and display School Brief beautifully
+                st.markdown("### 📄 School Brief (Principal-Facing)")
                 
+                # Display formatted report
+                lines = school_brief.split('\n')
+                in_section = False
+                section_content = []
+                
+                for line in lines:
+                    # Skip decoration lines
+                    if '═' in line or '─' in line:
+                        continue
+                    
+                    # Section headers
+                    if line.strip() and line.strip().isupper() and len(line.strip()) > 10:
+                        if section_content:
+                            st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                            section_content = []
+                        st.markdown(f"#### {line.strip()}")
+                        in_section = True
+                    # Content lines
+                    elif line.strip():
+                        # Highlight key metrics
+                        if 'Decision Posture:' in line or 'Overall System State:' in line:
+                            parts = line.split(':')
+                            if len(parts) == 2:
+                                st.markdown(f"**{parts[0]}:** <span style='color: #1e3a8a; font-weight: 700; font-size: 1.1rem;'>{parts[1]}</span>", unsafe_allow_html=True)
+                        elif line.startswith('Total Incidents:') or 'minutes' in line.lower() or 'days' in line.lower():
+                            st.markdown(f"**{line}**")
+                        else:
+                            section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                
+                # Flush remaining content
+                if section_content:
+                    st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                
+                # Download button
+                st.markdown("<br>", unsafe_allow_html=True)
                 st.download_button(
-                    label="📥 Download School Brief",
+                    label="📥 Download School Brief (Plain Text)",
                     data=school_brief,
                     file_name=f"{uploaded_file.name.split('.')[0]}_SCHOOL_BRIEF.txt",
                     mime="text/plain",
@@ -391,15 +422,39 @@ if uploaded_file is not None:
             
             with tab2:
                 if STATE_MODE == "TEXAS_TEA":
-                    st.text_area(
-                        "District TEA Report (Compliance)",
-                        district_report,
-                        height=400,
-                        label_visibility="collapsed"
-                    )
+                    st.markdown("### 📋 District TEA Report (Compliance)")
                     
+                    # Parse and display TEA Report
+                    lines = district_report.split('\n')
+                    section_content = []
+                    
+                    for line in lines:
+                        # Skip decoration lines
+                        if '═' in line or '─' in line:
+                            continue
+                        
+                        # Section headers
+                        if line.strip() and line.strip().isupper() and len(line.strip()) > 10:
+                            if section_content:
+                                st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                                section_content = []
+                            st.markdown(f"#### {line.strip()}")
+                        # Content lines
+                        elif line.strip():
+                            # Highlight TEA codes and percentages
+                            if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
+                                st.markdown(f"**{line}**")
+                            else:
+                                section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                    
+                    # Flush remaining content
+                    if section_content:
+                        st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                    
+                    # Download button
+                    st.markdown("<br>", unsafe_allow_html=True)
                     st.download_button(
-                        label="📥 Download District Report",
+                        label="📥 Download District Report (Plain Text)",
                         data=district_report,
                         file_name=f"{uploaded_file.name.split('.')[0]}_DISTRICT_TEA_REPORT.txt",
                         mime="text/plain",
@@ -407,7 +462,6 @@ if uploaded_file is not None:
                     )
                 else:
                     st.info("District TEA Report only available in Texas mode")
-        
     except Exception as e:
         st.error(f"❌ Error processing file: {str(e)}")
         with st.expander("See error details"):
