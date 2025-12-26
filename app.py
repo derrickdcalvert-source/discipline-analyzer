@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sys
-from io import StringIO
+from io import StringIO, BytesIO
 import tempfile
 import os
 from reportlab.lib.pagesizes import letter
@@ -10,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
-from io import BytesIO
+
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
@@ -254,6 +254,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # PDF Generation Functions
 def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
     """Generate professional PDF for School Brief"""
@@ -305,8 +306,7 @@ def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
         'ESCALATE': '🚨'
     }
     icon = posture_icons.get(posture, '•')
-    # Header
-st.markdown("# 📊 Discipline Decision Brief Analyzer")
+    
     # Header
     story.append(Paragraph("📊 Discipline Decision Brief", title_style))
     story.append(Paragraph("School Brief — Principal-Facing Analysis", subtitle_style))
@@ -637,7 +637,9 @@ if uploaded_file is not None:
                 # Flush remaining content
                 if section_content:
                     st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
-               # Generate and download PDF
+                
+                # Download button
+                st.markdown("<br>", unsafe_allow_html=True)
                 pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_file.name)
                 st.download_button(
                     label="📥 Download School Brief (PDF)",
@@ -645,7 +647,7 @@ if uploaded_file is not None:
                     file_name=f"{uploaded_file.name.split('.')[0]}_SCHOOL_BRIEF.pdf",
                     mime="application/pdf",
                     use_container_width=True
-                ) 
+                )
             
             with tab2:
                 if STATE_MODE == "TEXAS_TEA":
@@ -677,7 +679,9 @@ if uploaded_file is not None:
                     # Flush remaining content
                     if section_content:
                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
-                   # Generate and download PDF
+                    
+                    # Download button
+                    st.markdown("<br>", unsafe_allow_html=True)
                     pdf_buffer = generate_district_tea_pdf(district_report, uploaded_file.name)
                     st.download_button(
                         label="📥 Download District Report (PDF)",
@@ -685,10 +689,10 @@ if uploaded_file is not None:
                         file_name=f"{uploaded_file.name.split('.')[0]}_DISTRICT_TEA_REPORT.pdf",
                         mime="application/pdf",
                         use_container_width=True
-                    ) 
-                   
+                    )
                 else:
                     st.info("District TEA Report only available in Texas mode")
+        
     except Exception as e:
         st.error(f"❌ Error processing file: {str(e)}")
         with st.expander("See error details"):
