@@ -256,7 +256,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PDF Generation Functions
-def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
+def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename, period_name):
     """Generate professional PDF for School Brief"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -309,7 +309,7 @@ def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
     
     # Header
     story.append(Paragraph("📊 Discipline Decision Brief", title_style))
-    story.append(Paragraph("School Brief — Principal-Facing Analysis", subtitle_style))
+    story.append(Paragraph(f"School Brief — {period_name}", subtitle_style))
     story.append(Spacer(1, 0.2*inch))
     
     # Posture callout box
@@ -384,7 +384,7 @@ def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename):
     buffer.seek(0)
     return buffer
 
-def generate_district_tea_pdf(district_report_text, uploaded_filename):
+def generate_district_tea_pdf(district_report_text, uploaded_filename, period_name):
     """Generate professional PDF for District TEA Report"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -428,7 +428,7 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename):
     
     # Header
     story.append(Paragraph("📋 District TEA Report", title_style))
-    story.append(Paragraph("Texas Education Agency Compliance Report", subtitle_style))
+    story.append(Paragraph(f"Texas Education Agency Compliance Report — {period_name}", subtitle_style))
     story.append(Spacer(1, 0.3*inch))
     
     # Parse report sections
@@ -509,6 +509,38 @@ with st.sidebar:
     st.markdown("[www.empower52.com](https://www.empower52.com)")
 
 # Main content
+st.markdown("## Configure Report Settings")
+
+# Report configuration inputs
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    campus_name = st.text_input(
+        "Campus/School Name",
+        value="Campus",
+        help="Enter the name of your campus or school"
+    )
+
+with col2:
+    reporting_period = st.selectbox(
+        "Reporting Period",
+        options=["Monthly", "Weekly", "Bi-Weekly"],
+        help="Select your reporting frequency"
+    )
+
+with col3:
+    # Auto-suggest period name based on current date
+    from datetime import datetime
+    current_month = datetime.now().strftime("%B %Y")
+    
+    period_name = st.text_input(
+        "Period Name",
+        value=current_month if reporting_period == "Monthly" else "",
+        placeholder="e.g., September 2024, Week 42",
+        help="Enter the specific period (e.g., 'September 2024', 'Week 42, 2024')"
+    )
+
+st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("## Upload Your Discipline Data")
 st.markdown("Upload a CSV or Excel file containing your discipline incident data.")
 
@@ -546,6 +578,11 @@ if uploaded_file is not None:
         with st.expander("📋 Preview Data (first 10 rows)", expanded=False):
             st.dataframe(df.head(10), use_container_width=True)
         
+        # Validate period name is provided
+        if not period_name or period_name.strip() == "":
+            st.warning("⚠️ Please enter a Period Name above before generating reports")
+            st.stop()
+        
         # Generate reports button
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -570,16 +607,29 @@ if uploaded_file is not None:
                 # Calculate impact
                 impact = calculate_instructional_impact(df)
                 
-                # Generate reports
-                school_brief = generate_school_brief(df, school_stats, posture, system_state, impact)
+                # Generate reports with period information
+                school_brief = generate_school_brief(
+                    df, school_stats, posture, system_state, impact,
+                    campus_name=campus_name,
+                    reporting_period=reporting_period,
+                    period_name=period_name
+                )
                 
                 if STATE_MODE == "TEXAS_TEA":
                     tea_stats = calculate_district_tea_stats(df)
-                    district_report = generate_district_tea_report(df, tea_stats)
+                    district_report = generate_district_tea_report(
+                        df, tea_stats,
+                        campus_name=campus_name,
+                        reporting_period=reporting_period,
+                        period_name=period_name
+                    )
             
             # Success message
             st.markdown("<br>", unsafe_allow_html=True)
             st.success("✅ **Analysis Complete!**")
+            
+            # Show period info
+            st.info(f"📅 **{reporting_period} Report:** {period_name}")
             
             # Key metrics
             st.markdown("### Key Findings")
@@ -638,13 +688,18 @@ if uploaded_file is not None:
                 if section_content:
                     st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                 
-                # Download PDF button
+                # Download PDF button with period-based filename
                 st.markdown("<br>", unsafe_allow_html=True)
-                pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_file.name)
+                pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_file.name, period_name)
+                
+                # Clean period name for filename
+                clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
+                filename = f"school_brief_{clean_period}.pdf"
+                
                 st.download_button(
                     label="📥 Download School Brief (PDF)",
                     data=pdf_buffer,
-                    file_name=f"{uploaded_file.name.split('.')[0]}_SCHOOL_BRIEF.pdf",
+                    file_name=filename,
                     mime="application/pdf",
                     use_container_width=True
                 )
@@ -680,13 +735,18 @@ if uploaded_file is not None:
                     if section_content:
                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                     
-                    # Download PDF button
+                    # Download PDF button with period-based filename
                     st.markdown("<br>", unsafe_allow_html=True)
-                    pdf_buffer = generate_district_tea_pdf(district_report, uploaded_file.name)
+                    pdf_buffer = generate_district_tea_pdf(district_report, uploaded_file.name, period_name)
+                    
+                    # Clean period name for filename
+                    clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
+                    filename = f"district_tea_report_{clean_period}.pdf"
+                    
                     st.download_button(
                         label="📥 Download District Report (PDF)",
                         data=pdf_buffer,
-                        file_name=f"{uploaded_file.name.split('.')[0]}_DISTRICT_TEA_REPORT.pdf",
+                        file_name=filename,
                         mime="application/pdf",
                         use_container_width=True
                     )
@@ -700,7 +760,7 @@ if uploaded_file is not None:
 
 else:
     # Show info when no file uploaded
-    st.info("👆 Upload your discipline data file to get started")
+    st.info("👆 Configure settings and upload your discipline data file to get started")
     
     # Demo datasets section
     st.markdown("<br><br>", unsafe_allow_html=True)
