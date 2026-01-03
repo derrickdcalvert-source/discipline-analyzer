@@ -1,15 +1,17 @@
-#!/usr/bin/env python3
 """
-Discipline Decision Brief Analyzer - TEXAS TEA VERSION
-Complete implementation with all 14 sections
-Deterministic rules-based system analysis
+ATLAS DISCIPLINE INTELLIGENCE — CORE ANALYSIS ENGINE
+Texas TEA Compliance Mode
+Version: 2.0 (Updated Jan 2026)
+
+Changes in this version:
+- Instructional Impact moved to Section 3
+- Per-grade table format for instructional loss
+- Chronic absenteeism context added
 """
 
 import pandas as pd
-import sys
 import hashlib
 from datetime import datetime
-from collections import Counter
 
 # ============================================================================
 # CONFIGURATION
@@ -17,80 +19,64 @@ from collections import Counter
 
 STATE_MODE = "TEXAS_TEA"
 
-# TEA Action Code Mapping (Texas mode only)
-TEA_CODE_MAP = {
-    # ISS - In-School Suspension
-    "In-School Suspension": "06",
-    "ISS": "06",
-    
-    # OSS - Out-of-School Suspension  
-    "Out-of-School Suspension": "05",
-    "OSS": "05",
-    
-    # DAEP - Disciplinary Alternative Education Placement
-    "DAEP": "07",
-    "Disciplinary Alternative Education Placement": "07",
-    
-    # JJAEP - Juvenile Justice AEP
-    "JJAEP": "13",
-    "Juvenile Justice Alternative Education Placement": "13",
-    
-    # Expulsion codes (01-04)
-    "Expulsion": "02",
-    "Expulsion with Services": "02",
-    "Expulsion without Services": "01",
-    
-    # Local responses (no TEA code)
-    "Warning": "N/A",
-    "Conference": "N/A",
-    "Detention": "N/A",
-    "Lunch Detention": "N/A",
-    "Saturday School": "N/A",
-    "Behavior Contract": "N/A",
-    "Parent Contact": "N/A",
-    "Counseling": "N/A",
-    "Restorative Practice": "N/A",
-    "Loss of Privilege": "N/A",
+# TEA Action Code Mapping (Texas Education Code Chapter 37)
+TEA_ACTION_MAPPING = {
+    'ISS': '06',
+    'In-School Suspension': '06',
+    'In School Suspension': '06',
+    'OSS': '05',
+    'Out-of-School Suspension': '05',
+    'Out of School Suspension': '05',
+    'DAEP': '07',
+    'JJAEP': '13',
+    'Expulsion': ['01', '02', '03', '04'],
+    'Expelled': ['01', '02', '03', '04']
 }
 
 # ============================================================================
-# TEA MAPPING
+# TEA ACTION MAPPING
 # ============================================================================
 
 def apply_tea_mapping(df):
-    """Apply TEA action codes and group classifications"""
+    """
+    Map Response values to TEA action groups
+    Adds Is_Removal column for analysis
+    """
     
-    # Map to TEA codes
-    df['TEA_Action_Code'] = df['Response'].map(TEA_CODE_MAP)
+    df = df.copy()
     
-    # Fill missing with N/A
-    df['TEA_Action_Code'] = df['TEA_Action_Code'].fillna('N/A')
+    # Initialize TEA_Group column
+    df['TEA_Group'] = 'LOCAL_ONLY'
+    df['Is_Removal'] = False
     
-    # Group into categories
-    def classify_action(response, code):
-        response_upper = str(response).upper()
-        code_str = str(code)
+    # Map responses to TEA groups
+    for response in df['Response'].unique():
+        response_upper = str(response).upper().strip()
         
-        if 'EXPULSION' in response_upper or code_str in ['01', '02', '03', '04']:
-            return 'EXPULSION'
-        elif 'JJAEP' in response_upper or code_str == '13':
-            return 'JJAEP'
-        elif 'DAEP' in response_upper or code_str == '07':
-            return 'DAEP'
-        elif 'OSS' in response_upper or 'OUT-OF-SCHOOL' in response_upper or code_str == '05':
-            return 'OSS'
-        elif 'ISS' in response_upper or 'IN-SCHOOL' in response_upper or code_str == '06':
-            return 'ISS'
-        else:
-            return 'LOCAL_ONLY'
-    
-    df['TEA_Action_Group'] = df.apply(
-        lambda row: classify_action(row['Response'], row['TEA_Action_Code']), 
-        axis=1
-    )
-    
-    # Mark removals
-    df['Is_Removal'] = df['TEA_Action_Group'].isin(['ISS', 'OSS', 'DAEP', 'JJAEP', 'EXPULSION'])
+        # ISS
+        if any(x in response_upper for x in ['ISS', 'IN-SCHOOL', 'IN SCHOOL']):
+            df.loc[df['Response'] == response, 'TEA_Group'] = 'ISS'
+            df.loc[df['Response'] == response, 'Is_Removal'] = True
+        
+        # OSS
+        elif any(x in response_upper for x in ['OSS', 'OUT-OF-SCHOOL', 'OUT OF SCHOOL']):
+            df.loc[df['Response'] == response, 'TEA_Group'] = 'OSS'
+            df.loc[df['Response'] == response, 'Is_Removal'] = True
+        
+        # DAEP
+        elif 'DAEP' in response_upper or 'ALTERNATIVE' in response_upper:
+            df.loc[df['Response'] == response, 'TEA_Group'] = 'DAEP'
+            df.loc[df['Response'] == response, 'Is_Removal'] = True
+        
+        # JJAEP
+        elif 'JJAEP' in response_upper or 'JUVENILE' in response_upper:
+            df.loc[df['Response'] == response, 'TEA_Group'] = 'JJAEP'
+            df.loc[df['Response'] == response, 'Is_Removal'] = True
+        
+        # Expulsion
+        elif 'EXPUL' in response_upper or 'EXPELLED' in response_upper:
+            df.loc[df['Response'] == response, 'TEA_Group'] = 'EXPULSION'
+            df.loc[df['Response'] == response, 'Is_Removal'] = True
     
     return df
 
@@ -98,254 +84,421 @@ def apply_tea_mapping(df):
 # STATISTICS CALCULATION
 # ============================================================================
 
-def calculate_school_brief_stats(df):
-    """Calculate statistics for school brief"""
+def calculate_school_brief_stats(df, state_mode="TEXAS_TEA"):
+    """
+    Calculate core statistics for School Campus Decision Brief
+    """
     
     total = len(df)
     
-    if STATE_MODE == "TEXAS_TEA":
-        action_counts = df['TEA_Action_Group'].value_counts()
-        
-        stats = {
-            'total_incidents': total,
-            'LOCAL_ONLY_count': action_counts.get('LOCAL_ONLY', 0),
-            'ISS_count': action_counts.get('ISS', 0),
-            'OSS_count': action_counts.get('OSS', 0),
-            'DAEP_count': action_counts.get('DAEP', 0),
-            'JJAEP_count': action_counts.get('JJAEP', 0),
-            'EXPULSION_count': action_counts.get('EXPULSION', 0),
-            'removal_count': df['Is_Removal'].sum(),
+    if total == 0:
+        return {
+            'total_incidents': 0,
+            'LOCAL_ONLY': 0, 'LOCAL_ONLY_pct': 0,
+            'ISS': 0, 'ISS_pct': 0,
+            'OSS': 0, 'OSS_pct': 0,
+            'DAEP': 0, 'DAEP_pct': 0,
+            'JJAEP': 0, 'JJAEP_pct': 0,
+            'Expulsion': 0, 'Expulsion_pct': 0,
+            'total_removals': 0,
+            'removal_pct': 0
         }
-        
-        # Calculate percentages
-        stats['LOCAL_ONLY_pct'] = (stats['LOCAL_ONLY_count'] / total * 100) if total > 0 else 0
-        stats['ISS_pct'] = (stats['ISS_count'] / total * 100) if total > 0 else 0
-        stats['OSS_pct'] = (stats['OSS_count'] / total * 100) if total > 0 else 0
-        stats['DAEP_pct'] = (stats['DAEP_count'] / total * 100) if total > 0 else 0
-        stats['JJAEP_pct'] = (stats['JJAEP_count'] / total * 100) if total > 0 else 0
-        stats['EXPULSION_pct'] = (stats['EXPULSION_count'] / total * 100) if total > 0 else 0
-        stats['removal_pct'] = (stats['removal_count'] / total * 100) if total > 0 else 0
-        
-    else:  # DEFAULT mode
-        stats = {
-            'total_incidents': total,
-            'removal_count': 0,
-            'removal_pct': 0,
-            'ISS_count': 0,
-            'OSS_count': 0,
-            'ISS_pct': 0,
-            'OSS_pct': 0,
-        }
+    
+    # Count by TEA group
+    tea_counts = df['TEA_Group'].value_counts().to_dict()
+    
+    stats = {
+        'total_incidents': total,
+        'LOCAL_ONLY': tea_counts.get('LOCAL_ONLY', 0),
+        'ISS': tea_counts.get('ISS', 0),
+        'OSS': tea_counts.get('OSS', 0),
+        'DAEP': tea_counts.get('DAEP', 0),
+        'JJAEP': tea_counts.get('JJAEP', 0),
+        'Expulsion': tea_counts.get('EXPULSION', 0)
+    }
+    
+    # Calculate percentages
+    stats['LOCAL_ONLY_pct'] = (stats['LOCAL_ONLY'] / total * 100)
+    stats['ISS_pct'] = (stats['ISS'] / total * 100)
+    stats['OSS_pct'] = (stats['OSS'] / total * 100)
+    stats['DAEP_pct'] = (stats['DAEP'] / total * 100)
+    stats['JJAEP_pct'] = (stats['JJAEP'] / total * 100)
+    stats['Expulsion_pct'] = (stats['Expulsion'] / total * 100)
+    
+    # Total removals
+    stats['total_removals'] = df['Is_Removal'].sum()
+    stats['removal_pct'] = (stats['total_removals'] / total * 100)
     
     return stats
 
+# ============================================================================
+# DISTRICT TEA STATISTICS
+# ============================================================================
+
 def calculate_district_tea_stats(df):
-    """Calculate TEA-specific statistics for district report"""
+    """
+    Calculate statistics for District TEA Compliance Report
+    """
     
     total = len(df)
+    tea_actions = df[df['Is_Removal'] == True]
     
-    tea_stats = {
+    stats = {
         'total_incidents': total,
-        'tea_action_counts': df['TEA_Action_Code'].value_counts().to_dict(),
-        'tea_group_counts': df['TEA_Action_Group'].value_counts().to_dict(),
-        'removal_count': df['Is_Removal'].sum(),
+        'total_tea_actions': len(tea_actions),
+        'tea_action_pct': (len(tea_actions) / total * 100) if total > 0 else 0,
+        'tea_groups': df['TEA_Group'].value_counts().to_dict()
     }
     
-    return tea_stats
-
-def calculate_instructional_impact(df):
-    """Calculate instructional time lost"""
-    
-    if 'Days_Removed' not in df.columns:
-        return {
-            'total_days_lost': 0,
-            'total_minutes_lost': 0,
-            'by_grade': {},
-            'available': False
-        }
-    
-    # Instructional minutes per day by grade band
-    def get_instructional_minutes(grade):
-        grade_str = str(grade).upper()
-        if any(g in grade_str for g in ['K', 'PK', '0', '1', '2', '3', '4', '5']):
-            return 420  # Elementary
-        elif any(g in grade_str for g in ['6', '7', '8']):
-            return 405  # Middle
-        else:
-            return 390  # High school
-    
-    df_impact = df[df['Days_Removed'].notna()].copy()
-    df_impact['Instructional_Minutes'] = df_impact['Grade'].apply(get_instructional_minutes)
-    df_impact['Minutes_Lost'] = df_impact['Days_Removed'] * df_impact['Instructional_Minutes']
-    
-    total_days = df_impact['Days_Removed'].sum()
-    total_minutes = df_impact['Minutes_Lost'].sum()
-    
-    by_grade = df_impact.groupby('Grade').agg({
-        'Days_Removed': 'sum',
-        'Minutes_Lost': 'sum'
-    }).to_dict('index')
-    
-    return {
-        'total_days_lost': total_days,
-        'total_minutes_lost': total_minutes,
-        'by_grade': by_grade,
-        'available': True
-    }
+    return stats
 
 # ============================================================================
-# POSTURE DETERMINATION
+# INSTRUCTIONAL IMPACT ANALYSIS (UPDATED)
+# ============================================================================
+
+def analyze_instructional_impact(df, state_mode="TEXAS_TEA"):
+    """
+    Calculate instructional time lost due to disciplinary removals
+    Returns dict with grade-level breakdown for table formatting
+    """
+    
+    # Check if Days_Removed exists
+    if 'Days_Removed' not in df.columns:
+        return {
+            'suppressed': True,
+            'reason': 'Days_Removed data not available in uploaded file',
+            'total_minutes': 0,
+            'total_days': 0,
+            'grade_distribution': {}
+        }
+    
+    # Filter for removal actions only
+    if state_mode == "TEXAS_TEA":
+        removal_df = df[df['Is_Removal'] == True].copy()
+    else:
+        removal_responses = ['ISS', 'OSS', 'Expulsion']
+        removal_df = df[df['Response'].isin(removal_responses)].copy()
+    
+    # Check if we have any Days_Removed data
+    removal_df = removal_df[removal_df['Days_Removed'].notna()].copy()
+    
+    if len(removal_df) == 0:
+        return {
+            'suppressed': True,
+            'reason': 'No Days_Removed data available for removal incidents',
+            'total_minutes': 0,
+            'total_days': 0,
+            'grade_distribution': {}
+        }
+    
+    # Convert Days_Removed to numeric
+    removal_df['Days_Removed'] = pd.to_numeric(removal_df['Days_Removed'], errors='coerce')
+    removal_df = removal_df[removal_df['Days_Removed'] > 0].copy()
+    
+    if len(removal_df) == 0:
+        return {
+            'suppressed': True,
+            'reason': 'No valid Days_Removed values found',
+            'total_minutes': 0,
+            'total_days': 0,
+            'grade_distribution': {}
+        }
+    
+    # Default: High school minutes per day
+    MINUTES_PER_DAY = 390
+    
+    # Calculate total impact
+    total_days = removal_df['Days_Removed'].sum()
+    total_minutes = total_days * MINUTES_PER_DAY
+    
+    # Calculate by grade
+    grade_distribution = {}
+    for grade in sorted(removal_df['Grade'].unique()):
+        grade_data = removal_df[removal_df['Grade'] == grade]
+        grade_days = grade_data['Days_Removed'].sum()
+        grade_minutes = grade_days * MINUTES_PER_DAY
+        
+        grade_distribution[grade] = {
+            'Days_Removed': grade_days,
+            'Minutes_Lost': grade_minutes
+        }
+    
+    return {
+        'suppressed': False,
+        'reason': None,
+        'total_minutes': int(total_minutes),
+        'total_days': round(total_days, 1),
+        'grade_distribution': grade_distribution
+    }
+
+# Backward compatibility alias
+def calculate_instructional_impact(df, state_mode="TEXAS_TEA"):
+    """
+    Backward compatibility wrapper for analyze_instructional_impact
+    """
+    return analyze_instructional_impact(df, state_mode)
+
+# ============================================================================
+# EQUITY PATTERN ANALYSIS
+# ============================================================================
+
+def analyze_equity_patterns(df, state_mode="TEXAS_TEA"):
+    """
+    Analyze equity patterns in removal rates
+    Only reports when subgroup N >= 10 (FERPA compliance)
+    """
+    
+    MIN_N = 10
+    campus_removal_rate = (df['Is_Removal'].sum() / len(df) * 100) if len(df) > 0 else 0
+    
+    equity_data = {
+        'suppressed': False,
+        'reason': None,
+        'by_race': {},
+        'by_gender': {},
+        'by_special_population': {}
+    }
+    
+    # Analyze by Race (if column exists)
+    if 'Race' in df.columns:
+        for race in df['Race'].unique():
+            if pd.isna(race):
+                continue
+            race_df = df[df['Race'] == race]
+            if len(race_df) >= MIN_N:
+                removal_rate = (race_df['Is_Removal'].sum() / len(race_df) * 100)
+                equity_data['by_race'][race] = {
+                    'count': len(race_df),
+                    'removals': int(race_df['Is_Removal'].sum()),
+                    'removal_rate': removal_rate
+                }
+    
+    # Analyze by Gender (if column exists)
+    if 'Gender' in df.columns:
+        for gender in df['Gender'].unique():
+            if pd.isna(gender):
+                continue
+            gender_df = df[df['Gender'] == gender]
+            if len(gender_df) >= MIN_N:
+                removal_rate = (gender_df['Is_Removal'].sum() / len(gender_df) * 100)
+                equity_data['by_gender'][gender] = {
+                    'count': len(gender_df),
+                    'removals': int(gender_df['Is_Removal'].sum()),
+                    'removal_rate': removal_rate
+                }
+    
+    # Analyze by Special Population (if column exists)
+    if 'Special_Population' in df.columns:
+        for pop in df['Special_Population'].unique():
+            if pd.isna(pop):
+                continue
+            pop_df = df[df['Special_Population'] == pop]
+            if len(pop_df) >= MIN_N:
+                removal_rate = (pop_df['Is_Removal'].sum() / len(pop_df) * 100)
+                equity_data['by_special_population'][pop] = {
+                    'count': len(pop_df),
+                    'removals': int(pop_df['Is_Removal'].sum()),
+                    'removal_rate': removal_rate
+                }
+    
+    # Check if we have any reportable data
+    has_data = (len(equity_data['by_race']) > 0 or 
+                len(equity_data['by_gender']) > 0 or 
+                len(equity_data['by_special_population']) > 0)
+    
+    if not has_data:
+        equity_data['suppressed'] = True
+        equity_data['reason'] = 'No subgroups meet minimum N >= 10 reporting threshold (FERPA compliance)'
+    
+    return equity_data
+
+# ============================================================================
+# DECISION POSTURE (TEXAS MODE)
 # ============================================================================
 
 def determine_posture_texas(stats):
-    """Determine discipline system posture (Texas TEA mode)"""
+    """
+    Determine Decision Posture using Texas TEA rules
+    """
     
+    total = stats['total_incidents']
+    
+    if total == 0:
+        return "STABLE", "Stable"
+    
+    # Calculate removal percentages
     removal_pct = stats['removal_pct']
     oss_pct = stats['OSS_pct']
-    expulsion_count = stats['EXPULSION_count']
+    expulsion_count = stats['Expulsion']
     
-    # ESCALATE conditions
+    # ESCALATE
     if removal_pct >= 60 or oss_pct >= 20 or expulsion_count > 0:
-        return "ESCALATE", "Discipline system requires immediate attention."
+        return "ESCALATE", "Escalating"
     
-    # INTERVENE conditions
-    elif removal_pct >= 45:
-        return "INTERVENE", "Discipline system under significant pressure requiring leadership focus."
+    # INTERVENE
+    if (removal_pct >= 45 and removal_pct < 60) or (oss_pct >= 15 and oss_pct < 20):
+        return "INTERVENE", "Drifting → Early Escalation Pressure"
     
-    # CALIBRATE conditions
-    elif removal_pct >= 35:
-        return "CALIBRATE", "Discipline system showing moderate pressure. Monitor closely."
+    # CALIBRATE
+    if (removal_pct >= 35 and removal_pct < 45) or (oss_pct >= 10 and oss_pct < 15):
+        return "CALIBRATE", "Elevated Pressure"
     
     # STABLE
-    else:
-        return "STABLE", "Discipline system operating within expected parameters."
+    return "STABLE", "Stable"
 
-def determine_posture_default(stats):
-    """Determine discipline system posture (Default mode)"""
+# ============================================================================
+# SCHOOL CAMPUS DECISION BRIEF (UPDATED WITH SECTION 3 INSTRUCTIONAL IMPACT)
+# ============================================================================
+
+def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA"):
+    """
+    Generate School Campus Decision Brief (Principal-Facing)
+    Updated: Instructional Impact moved to Section 3
+    """
     
+    # Calculate all required metrics
+    stats = calculate_school_brief_stats(df, state_mode)
+    posture, system_state = determine_posture_texas(stats)
+    impact = analyze_instructional_impact(df, state_mode)
+    equity = analyze_equity_patterns(df, state_mode)
+    
+    # Generate data hash
+    data_hash = hashlib.md5(df.to_string().encode()).hexdigest()
+    
+    # Start building the brief
+    brief = ""
+    brief += "=" * 80 + "\n"
+    brief += "ATLAS DISCIPLINE INTELLIGENCE — SCHOOL CAMPUS DECISION BRIEF\n"
+    brief += "=" * 80 + "\n\n"
+    
+    # ========================================================================
+    # SECTION 1: HEADER
+    # ========================================================================
+    
+    brief += f"**Campus:** {campus_name}\n"
+    brief += f"**Date Range:** {df['Date'].min()} to {df['Date'].max()}\n"
+    brief += f"**State Mode:** {state_mode}\n"
+    brief += f"**Data Hash:** {data_hash[:16]}...\n"
+    brief += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    brief += "─" * 80 + "\n\n"
+    
+    # ========================================================================
+    # SECTION 2: DISCIPLINE SYSTEM STATUS — AT A GLANCE
+    # ========================================================================
+    
+    brief += "## DISCIPLINE SYSTEM STATUS — AT A GLANCE\n\n"
+    brief += f"**Overall System State:** {system_state}\n\n"
+    brief += f"**Decision Posture:** {posture}\n\n"
+    
+    # Leadership interpretation
     removal_pct = stats['removal_pct']
-    oss_pct = stats['OSS_pct']
-    
-    if removal_pct >= 50 or oss_pct >= 15:
-        return "ESCALATE", "Discipline system requires immediate attention."
-    elif removal_pct >= 35:
-        return "INTERVENE", "Discipline system under pressure."
-    elif removal_pct >= 20:
-        return "CALIBRATE", "Discipline system showing moderate pressure."
+    if posture == "ESCALATE":
+        brief += f"**Leadership Interpretation:** System pressure exceeds intervention thresholds. Removal rate at {removal_pct:.1f}% requires immediate executive attention.\n\n"
+    elif posture == "INTERVENE":
+        brief += f"**Leadership Interpretation:** System trending toward crisis thresholds. Removal rate at {removal_pct:.1f}% demands active monitoring and targeted intervention.\n\n"
+    elif posture == "CALIBRATE":
+        brief += f"**Leadership Interpretation:** System pressure elevated but manageable. Removal rate at {removal_pct:.1f}% approaching intervention threshold.\n\n"
     else:
-        return "STABLE", "Discipline system operating normally."
-
-# ============================================================================
-# REPORT GENERATION - COMPLETE WITH ALL 14 SECTIONS
-# ============================================================================
-
-def generate_school_brief(df, stats, posture, system_state, impact, 
-                         campus_name="Campus", reporting_period="Monthly", period_name="Current Period"):
-    """Generate School Campus Decision Brief with all 14 required sections"""
+        brief += f"**Leadership Interpretation:** System operating within normal parameters. Removal rate at {removal_pct:.1f}% remains stable.\n\n"
     
-    date_min = df['Date'].min().strftime('%Y-%m-%d')
-    date_max = df['Date'].max().strftime('%Y-%m-%d')
+    brief += "─" * 80 + "\n\n"
     
-    # Generate data hash for determinism
-    data_str = df.to_csv(index=False)
-    data_hash = hashlib.md5(data_str.encode()).hexdigest()[:8]
+    # ========================================================================
+    # SECTION 3: INSTRUCTIONAL IMPACT (MOVED FROM SECTION 10)
+    # ========================================================================
     
-    # ========== SECTION 1: HEADER ==========
-    report = f"""
-═══════════════════════════════════════════════════════════════════════════
-SCHOOL CAMPUS DECISION BRIEF
-═══════════════════════════════════════════════════════════════════════════
-
-Campus: {campus_name}
-Reporting Period: {reporting_period}
-Period: {period_name}
-Date Range: {date_min} to {date_max}
-State Mode: {STATE_MODE}
-Data Hash: {data_hash}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-"""
+    brief += "## INSTRUCTIONAL IMPACT\n\n"
     
-    # ========== SECTION 2: DISCIPLINE SYSTEM STATUS ==========
-    report += f"""═══════════════════════════════════════════════════════════════════════════
-DISCIPLINE SYSTEM STATUS — AT A GLANCE
-═══════════════════════════════════════════════════════════════════════════
-
-Overall System State: {posture}
-Decision Posture: {posture}
-Leadership Interpretation: {system_state}
-
-"""
+    if impact['suppressed']:
+        brief += f"*Section suppressed: {impact['reason']}*\n\n"
+    else:
+        brief += "**Impact by Grade:**\n\n"
+        brief += "```\n"
+        
+        # Sort by grade and display in table format
+        for grade in sorted(impact['grade_distribution'].keys()):
+            data = impact['grade_distribution'][grade]
+            days = data['Days_Removed']
+            minutes = data['Minutes_Lost']
+            brief += f"Grade {str(grade):>2}: {int(minutes):>6,} minutes ({days:>5.1f} days)\n"
+        
+        brief += "─" * 40 + "\n"
+        brief += f"TOTAL:    {impact['total_minutes']:>6,} minutes ({impact['total_days']:>5.1f} days)\n"
+        brief += "```\n\n"
+        
+        # STAAR & Accountability Context (UPDATED WITH CHRONIC ABSENTEEISM)
+        brief += "**STAAR & Accountability Context:**\n\n"
+        brief += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n\n"
+        brief += "Under Texas accountability, students removed from instruction for 10% or more of enrolled days meet the chronic absenteeism threshold. Disciplinary removals count toward this metric and affect campus ratings in the Academic Achievement domain.\n\n"
     
-    # ========== SECTION 3: RESPONSE / REMOVAL SNAPSHOT ==========
-    report += f"""═══════════════════════════════════════════════════════════════════════════
-RESPONSE / REMOVAL SNAPSHOT
-═══════════════════════════════════════════════════════════════════════════
-
-Total Incidents: {stats['total_incidents']}
-
-"""
+    brief += "─" * 80 + "\n\n"
     
-    if STATE_MODE == "TEXAS_TEA":
-        report += f"""Action Group Breakdown:
-  LOCAL_ONLY: {stats['LOCAL_ONLY_count']} ({stats['LOCAL_ONLY_pct']:.1f}%)
-  ISS: {stats['ISS_count']} ({stats['ISS_pct']:.1f}%)
-  OSS: {stats['OSS_count']} ({stats['OSS_pct']:.1f}%)
-  DAEP: {stats['DAEP_count']} ({stats['DAEP_pct']:.1f}%)
-  JJAEP: {stats['JJAEP_count']} ({stats['JJAEP_pct']:.1f}%)
-  EXPULSION: {stats['EXPULSION_count']} ({stats['EXPULSION_pct']:.1f}%)
-
-Total Removals: {stats['removal_count']} ({stats['removal_pct']:.1f}%)
-
-"""
+    # ========================================================================
+    # SECTION 4: RESPONSE / REMOVAL SNAPSHOT
+    # ========================================================================
     
-    # ========== SECTION 4: GRADE-LEVEL PRESSURE ANALYSIS ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-GRADE-LEVEL PRESSURE ANALYSIS
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    brief += "## RESPONSE / REMOVAL SNAPSHOT\n\n"
+    brief += f"**Total Incidents:** {stats['total_incidents']}\n\n"
     
-    campus_avg = stats['removal_pct']
+    brief += "**Response Distribution:**\n\n"
+    brief += f"- LOCAL_ONLY: {stats['LOCAL_ONLY']} ({stats['LOCAL_ONLY_pct']:.1f}%)\n"
+    brief += f"- ISS: {stats['ISS']} ({stats['ISS_pct']:.1f}%)\n"
+    brief += f"- OSS: {stats['OSS']} ({stats['OSS_pct']:.1f}%)\n"
+    brief += f"- DAEP: {stats['DAEP']} ({stats['DAEP_pct']:.1f}%)\n"
+    brief += f"- JJAEP: {stats['JJAEP']} ({stats['JJAEP_pct']:.1f}%)\n"
+    brief += f"- EXPULSION: {stats['Expulsion']} ({stats['Expulsion_pct']:.1f}%)\n\n"
+    
+    brief += f"**Total Removals:** {stats['total_removals']} ({stats['removal_pct']:.1f}%)\n\n"
+    
+    brief += "─" * 80 + "\n\n"
+    
+    # ========================================================================
+    # SECTION 5: GRADE-LEVEL PRESSURE ANALYSIS
+    # ========================================================================
+    
+    brief += "## GRADE-LEVEL PRESSURE ANALYSIS\n\n"
+    
     grade_analysis = df.groupby('Grade').agg({
         'Response': 'count',
         'Is_Removal': 'sum'
     }).reset_index()
     grade_analysis['Removal_Rate'] = (grade_analysis['Is_Removal'] / grade_analysis['Response'] * 100)
-    grade_analysis['Variance'] = grade_analysis['Removal_Rate'] - campus_avg
+    grade_analysis['Variance'] = grade_analysis['Removal_Rate'] - stats['removal_pct']
     grade_analysis = grade_analysis.sort_values('Removal_Rate', ascending=False)
     
+    brief += "**Removal Rate by Grade:**\n\n"
     for _, row in grade_analysis.iterrows():
-        variance_sign = "+" if row['Variance'] > 0 else ""
-        report += f"Grade {row['Grade']}: {row['Removal_Rate']:.1f}% removal rate ({variance_sign}{row['Variance']:.1f}% vs campus avg)\n"
+        variance_sign = "+" if row['Variance'] >= 0 else ""
+        brief += f"- Grade {row['Grade']}: {row['Removal_Rate']:.1f}% ({variance_sign}{row['Variance']:.1f}% vs campus avg)\n"
     
-    report += "\n"
+    brief += "\n"
+    brief += "─" * 80 + "\n\n"
     
-    # ========== SECTION 5: TOP INCIDENT TYPES ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-TOP INCIDENT TYPES
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    # ========================================================================
+    # SECTION 6: TOP INCIDENT TYPES
+    # ========================================================================
+    
+    brief += "## TOP INCIDENT TYPES\n\n"
     
     incident_analysis = df.groupby('Incident_Type').agg({
         'Response': 'count',
         'Is_Removal': 'sum'
     }).reset_index()
-    incident_analysis['Removal_Conversion'] = (incident_analysis['Is_Removal'] / incident_analysis['Response'] * 100)
+    incident_analysis['Removal_Rate'] = (incident_analysis['Is_Removal'] / incident_analysis['Response'] * 100)
     incident_analysis = incident_analysis.sort_values('Response', ascending=False)
     
+    brief += "**Top 3 by Volume:**\n\n"
     for _, row in incident_analysis.head(3).iterrows():
-        report += f"{row['Incident_Type']}: {row['Response']} incidents, {row['Removal_Conversion']:.1f}% removal conversion\n"
+        brief += f"- {row['Incident_Type']}: {int(row['Response'])} incidents, {row['Removal_Rate']:.1f}% removal rate\n"
     
-    report += "\n"
+    brief += "\n"
+    brief += "─" * 80 + "\n\n"
     
-    # ========== SECTION 6: LOCATION HOTSPOTS ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-LOCATION HOTSPOTS
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    # ========================================================================
+    # SECTION 7: LOCATION HOTSPOTS
+    # ========================================================================
+    
+    brief += "## LOCATION HOTSPOTS\n\n"
     
     location_analysis = df.groupby('Location').agg({
         'Response': 'count',
@@ -354,276 +507,238 @@ LOCATION HOTSPOTS
     location_analysis['Removal_Rate'] = (location_analysis['Is_Removal'] / location_analysis['Response'] * 100)
     location_analysis = location_analysis.sort_values('Response', ascending=False)
     
+    brief += "**Top 3 Locations:**\n\n"
     for _, row in location_analysis.head(3).iterrows():
-        report += f"{row['Location']}: {row['Response']} incidents, {row['Removal_Rate']:.1f}% removal rate\n"
+        brief += f"- {row['Location']}: {int(row['Response'])} incidents, {row['Removal_Rate']:.1f}% removal rate\n"
     
-    report += "\n"
+    brief += "\n"
+    brief += "─" * 80 + "\n\n"
     
-    # ========== SECTION 7: TIME BLOCK PATTERNS ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-TIME BLOCK PATTERNS
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    # ========================================================================
+    # SECTION 8: TIME BLOCK PATTERNS
+    # ========================================================================
+    
+    brief += "## TIME BLOCK PATTERNS\n\n"
     
     time_analysis = df.groupby('Time_Block').agg({
         'Response': 'count',
         'Is_Removal': 'sum'
     }).reset_index()
-    time_analysis['Removal_Density'] = (time_analysis['Is_Removal'] / time_analysis['Response'] * 100)
+    time_analysis['Removal_Rate'] = (time_analysis['Is_Removal'] / time_analysis['Response'] * 100)
     time_analysis = time_analysis.sort_values('Response', ascending=False)
     
-    for _, row in time_analysis.iterrows():
-        report += f"{row['Time_Block']}: {row['Response']} incidents, {row['Removal_Density']:.1f}% removal density\n"
+    brief += "**Incident Concentration:**\n\n"
+    for _, row in time_analysis.head(3).iterrows():
+        brief += f"- {row['Time_Block']}: {int(row['Response'])} incidents, {row['Removal_Rate']:.1f}% removal rate\n"
     
-    report += "\n"
+    brief += "\n"
+    brief += "─" * 80 + "\n\n"
     
-    # ========== SECTION 8: BEHAVIORAL PRESSURE SIGNAL ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-BEHAVIORAL PRESSURE SIGNAL
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    # ========================================================================
+    # SECTION 9: BEHAVIORAL PRESSURE SIGNAL
+    # ========================================================================
     
-    # Find the highest-volume incident type that also drives removals
-    top_incident = incident_analysis.head(1).iloc[0]
-    top_location = location_analysis.head(1).iloc[0]
+    brief += "## BEHAVIORAL PRESSURE SIGNAL\n\n"
     
-    report += f"What drives system pressure: {top_incident['Incident_Type']} incidents\n"
-    report += f"Where it concentrates: {top_location['Location']}\n"
-    report += f"Why it matters: {top_incident['Response']} total incidents with {top_incident['Removal_Conversion']:.1f}% conversion to removal\n\n"
+    # Top removal-driving incident type
+    top_removal_incident = incident_analysis.sort_values('Is_Removal', ascending=False).iloc[0]
+    top_removal_location = location_analysis.sort_values('Is_Removal', ascending=False).iloc[0]
+    top_removal_time = time_analysis.sort_values('Is_Removal', ascending=False).iloc[0]
     
-    # ========== SECTION 9: TOP RISK (MOST IMPORTANT) ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-TOP RISK
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    brief += f"**What drives system pressure:** {top_removal_incident['Incident_Type']} incidents account for {int(top_removal_incident['Is_Removal'])} removals ({(top_removal_incident['Is_Removal']/stats['total_removals']*100):.1f}% of total).\n\n"
+    brief += f"**Where it concentrates:** {top_removal_location['Location']} and {top_removal_time['Time_Block']}.\n\n"
+    brief += f"**Why it matters:** This behavior pattern converts to removal at {top_removal_incident['Removal_Rate']:.1f}% rate, directly driving current posture.\n\n"
     
-    # Determine the top risk based on posture and patterns
-    top_grade = grade_analysis.head(1).iloc[0]
+    brief += "─" * 80 + "\n\n"
     
+    # ========================================================================
+    # SECTION 10: TOP RISK
+    # ========================================================================
+    
+    brief += "## TOP RISK (URGENT ATTENTION)\n\n"
+    
+    # Generate specific risk assessment
     if posture == "ESCALATE":
-        if stats['removal_pct'] >= 60:
-            report += f"Removal rate at {stats['removal_pct']:.1f}% exceeds sustainable threshold. "
-            report += f"Grade {top_grade['Grade']} drives pressure at {top_grade['Removal_Rate']:.1f}% removal rate. "
-            report += "Immediate leadership intervention required to prevent system collapse.\n\n"
-        elif stats['OSS_pct'] >= 20:
-            report += f"OSS usage at {stats['OSS_pct']:.1f}% indicates loss of alternative response capacity. "
-            report += f"{top_location['Location']} accounts for {top_location['Response']} incidents. "
-            report += "Leadership must address response option exhaustion.\n\n"
-        else:  # Expulsions present
-            report += f"Expulsion pattern present ({stats['EXPULSION_count']} cases). "
-            report += "System under maximum stress. District-level review required.\n\n"
-    
+        top_grade = grade_analysis.iloc[0]
+        brief += f"**What is breaking:** Grade {top_grade['Grade']} operates at {top_grade['Removal_Rate']:.1f}% removal rate. "
+        brief += f"{top_removal_incident['Incident_Type']} incidents in {top_removal_location['Location']} convert to removal at {top_removal_incident['Removal_Rate']:.1f}%.\n\n"
+        brief += f"**Where leadership attention must go:** Immediate focus on Grade {top_grade['Grade']} during {top_removal_time['Time_Block']}. "
+        brief += f"System cannot sustain current removal rate without operational consequences.\n\n"
     elif posture == "INTERVENE":
-        report += f"Removal rate at {stats['removal_pct']:.1f}% approaching critical threshold. "
-        report += f"Grade {top_grade['Grade']} concentration at {top_grade['Removal_Rate']:.1f}% creates instability. "
-        report += f"{top_incident['Incident_Type']} drives {top_incident['Response']} incidents in {top_location['Location']}. "
-        report += "Leadership attention required before escalation.\n\n"
-    
+        brief += f"**What is breaking:** Removal rate approaching crisis threshold. {top_removal_incident['Incident_Type']} incidents driving system pressure.\n\n"
+        brief += f"**Where leadership attention must go:** Monitor Grade {grade_analysis.iloc[0]['Grade']} closely. Deploy targeted support to {top_removal_location['Location']}.\n\n"
     elif posture == "CALIBRATE":
-        report += f"System pressure elevated at {stats['removal_pct']:.1f}% removal. "
-        report += f"Grade {top_grade['Grade']} showing {top_grade['Removal_Rate']:.1f}% removal rate. "
-        report += f"Monitor {top_incident['Incident_Type']} pattern for trend direction.\n\n"
-    
-    else:  # STABLE
-        report += f"System stable at {stats['removal_pct']:.1f}% removal. "
-        report += "Continue current approach. Monitor for emerging patterns.\n\n"
-    
-    # ========== SECTION 10: INSTRUCTIONAL IMPACT ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-INSTRUCTIONAL IMPACT
-═══════════════════════════════════════════════════════════════════════════
-
-"""
-    
-    if impact['available']:
-        report += f"Total Instructional Days Lost: {impact['total_days_lost']:.0f} days\n"
-        report += f"Total Instructional Minutes Lost: {impact['total_minutes_lost']:.0f} minutes\n\n"
-        
-        report += "Distribution by Grade:\n"
-        for grade, data in sorted(impact['by_grade'].items(), key=lambda x: x[1]['Days_Removed'], reverse=True):
-            report += f"  Grade {grade}: {data['Days_Removed']:.0f} days ({data['Minutes_Lost']:.0f} minutes)\n"
-        
-        report += "\nSustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n\n"
+        brief += f"**What is breaking:** System trending toward intervention levels. Early pressure signals in Grade {grade_analysis.iloc[0]['Grade']}.\n\n"
+        brief += f"**Where leadership attention must go:** Active monitoring of {top_removal_incident['Incident_Type']} incidents. Prevent escalation through early intervention.\n\n"
     else:
-        report += "Days_Removed data not available. Instructional impact analysis suppressed.\n\n"
+        brief += "**Current assessment:** No immediate crisis indicators. System operating within normal parameters. Continue routine monitoring.\n\n"
     
-    # ========== SECTION 11: EQUITY PATTERN SUMMARY ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-EQUITY PATTERN SUMMARY
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    brief += "─" * 80 + "\n\n"
     
-    equity_reported = False
+    # ========================================================================
+    # SECTION 11: EQUITY PATTERN SUMMARY
+    # ========================================================================
     
-    # Check for demographic data
-    if 'Race' in df.columns:
-        race_analysis = df.groupby('Race').agg({
-            'Response': 'count',
-            'Is_Removal': 'sum'
-        }).reset_index()
-        race_analysis['Removal_Rate'] = (race_analysis['Is_Removal'] / race_analysis['Response'] * 100)
-        race_analysis['Ratio'] = race_analysis['Removal_Rate'] / campus_avg if campus_avg > 0 else 0
+    brief += "## EQUITY PATTERN SUMMARY\n\n"
+    
+    if equity['suppressed']:
+        brief += f"*Section suppressed: {equity['reason']}*\n\n"
+    else:
+        brief += "**Removal Rate by Subgroup (N ≥ 10 only):**\n\n"
         
-        # Only report if N >= 10
-        for _, row in race_analysis[race_analysis['Response'] >= 10].iterrows():
-            if row['Ratio'] >= 1.5:
-                report += f"{row['Race']}: {row['Removal_Rate']:.1f}% removal rate ({row['Ratio']:.1f}x campus average)\n"
-                equity_reported = True
+        if equity['by_race']:
+            brief += "**By Race:**\n"
+            for race, data in equity['by_race'].items():
+                ratio = data['removal_rate'] / stats['removal_pct'] if stats['removal_pct'] > 0 else 0
+                brief += f"- {race}: {data['removal_rate']:.1f}% ({ratio:.2f}x campus avg)\n"
+            brief += "\n"
+        
+        if equity['by_gender']:
+            brief += "**By Gender:**\n"
+            for gender, data in equity['by_gender'].items():
+                ratio = data['removal_rate'] / stats['removal_pct'] if stats['removal_pct'] > 0 else 0
+                brief += f"- {gender}: {data['removal_rate']:.1f}% ({ratio:.2f}x campus avg)\n"
+            brief += "\n"
+        
+        if equity['by_special_population']:
+            brief += "**By Special Population:**\n"
+            for pop, data in equity['by_special_population'].items():
+                ratio = data['removal_rate'] / stats['removal_pct'] if stats['removal_pct'] > 0 else 0
+                brief += f"- {pop}: {data['removal_rate']:.1f}% ({ratio:.2f}x campus avg)\n"
+            brief += "\n"
     
-    if not equity_reported:
-        report += "No equity patterns meet reporting threshold (N≥10, ratio≥1.5x).\n"
+    brief += "─" * 80 + "\n\n"
     
-    report += "\n"
+    # ========================================================================
+    # SECTION 12: WATCH LIST
+    # ========================================================================
     
-    # ========== SECTION 12: WATCH LIST ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-WATCH LIST
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    brief += "## WATCH LIST (MONITOR FOR ESCALATION)\n\n"
     
     watch_items = []
     
-    # Check grades approaching threshold
+    # Check for grades approaching threshold
     for _, row in grade_analysis.iterrows():
-        if 30 <= row['Removal_Rate'] < 35:
-            watch_items.append(f"Grade {row['Grade']} at {row['Removal_Rate']:.1f}% (approaching calibration threshold)")
+        if 30 <= row['Removal_Rate'] < 45:
+            watch_items.append(f"Grade {row['Grade']} at {row['Removal_Rate']:.1f}% removal rate (approaching calibration threshold)")
     
-    # Check incident types with high conversion
-    for _, row in incident_analysis.head(5).iterrows():
-        if row['Removal_Conversion'] >= 60:
-            watch_items.append(f"{row['Incident_Type']} shows {row['Removal_Conversion']:.1f}% removal conversion")
+    # Check for OSS approaching threshold
+    if 8 <= stats['OSS_pct'] < 15:
+        watch_items.append(f"OSS usage at {stats['OSS_pct']:.1f}% (monitor for 15% threshold)")
+    
+    # Check for locations with high removal rates
+    for _, row in location_analysis.head(3).iterrows():
+        if row['Removal_Rate'] > stats['removal_pct'] * 1.2:
+            watch_items.append(f"{row['Location']} converting to removal at {row['Removal_Rate']:.1f}% (above campus avg)")
     
     if watch_items:
         for item in watch_items:
-            report += f"• {item}\n"
+            brief += f"- {item}\n"
     else:
-        report += "No patterns currently on watch list.\n"
+        brief += "No patterns currently flagged for monitoring.\n"
     
-    report += "\n"
+    brief += "\n"
+    brief += "─" * 80 + "\n\n"
     
-    # ========== SECTION 13: POSTURE BOUNDARIES ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-POSTURE BOUNDARIES
-═══════════════════════════════════════════════════════════════════════════
-
-Current Position:
-  Removal Rate: {:.1f}%
-  OSS Rate: {:.1f}%
-  Expulsions: {}
-
-Threshold Reference:
-  STABLE: Removal <35%, OSS <10%, Expulsions=0
-  CALIBRATE: Removal 35-44%, OSS <15%
-  INTERVENE: Removal 45-59%, OSS <20%
-  ESCALATE: Removal ≥60% OR OSS ≥20% OR Expulsions >0
-
-""".format(stats['removal_pct'], stats['OSS_pct'], stats['EXPULSION_count'])
+    # ========================================================================
+    # SECTION 13: POSTURE BOUNDARIES
+    # ========================================================================
     
-    # ========== SECTION 14: BOTTOM LINE FOR LEADERSHIP ==========
-    report += """═══════════════════════════════════════════════════════════════════════════
-BOTTOM LINE FOR LEADERSHIP
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    brief += "## POSTURE BOUNDARIES (THRESHOLD REFERENCE)\n\n"
+    
+    brief += "**STABLE:** Removal < 35%, OSS < 10%, Expulsions = 0\n"
+    brief += "**CALIBRATE:** Removal 35-44%, OSS < 15%\n"
+    brief += "**INTERVENE:** Removal 45-59%, OSS < 20%\n"
+    brief += "**ESCALATE:** Removal ≥ 60% OR OSS ≥ 20% OR Expulsions present\n\n"
+    
+    brief += f"**Current Position:**\n"
+    brief += f"- Removal Rate: {stats['removal_pct']:.1f}%\n"
+    brief += f"- OSS Rate: {stats['OSS_pct']:.1f}%\n"
+    brief += f"- Expulsions: {stats['Expulsion']}\n"
+    brief += f"- Posture: {posture}\n\n"
+    
+    brief += "─" * 80 + "\n\n"
+    
+    # ========================================================================
+    # SECTION 14: BOTTOM LINE FOR LEADERSHIP
+    # ========================================================================
+    
+    brief += "## BOTTOM LINE FOR LEADERSHIP\n\n"
     
     if posture == "ESCALATE":
-        report += f"System operating beyond sustainable parameters at {stats['removal_pct']:.1f}% removal. "
-        report += f"Grade {top_grade['Grade']} concentration and {top_incident['Incident_Type']} pattern in {top_location['Location']} demand immediate leadership focus. "
-        report += "Current trajectory unsustainable without intervention.\n"
+        brief += f"Campus discipline system operates in crisis mode at {stats['removal_pct']:.1f}% removal rate. "
+        brief += f"Grade {grade_analysis.iloc[0]['Grade']} drives system pressure through {top_removal_incident['Incident_Type']} incidents. "
+        brief += f"Current trajectory unsustainable. Executive intervention required immediately.\n\n"
     elif posture == "INTERVENE":
-        report += f"System under significant pressure at {stats['removal_pct']:.1f}% removal. "
-        report += f"Grade {top_grade['Grade']} and {top_location['Location']} patterns require leadership attention to prevent escalation. "
-        report += "Window for proactive response remains open.\n"
+        brief += f"System pressure approaching crisis thresholds at {stats['removal_pct']:.1f}% removal. "
+        brief += f"Targeted action needed in Grade {grade_analysis.iloc[0]['Grade']} and {top_removal_location['Location']}. "
+        brief += f"Window for preventive intervention closing.\n\n"
     elif posture == "CALIBRATE":
-        report += f"System showing moderate pressure at {stats['removal_pct']:.1f}% removal. "
-        report += f"Monitor Grade {top_grade['Grade']} and {top_incident['Incident_Type']} trends closely. "
-        report += "Maintain current approach with increased vigilance.\n"
-    else:  # STABLE
-        report += f"System operating within expected parameters at {stats['removal_pct']:.1f}% removal. "
-        report += "Continue current practices. Maintain monitoring for emerging patterns.\n"
+        brief += f"System trending toward intervention zone at {stats['removal_pct']:.1f}% removal. "
+        brief += f"Monitor {top_removal_incident['Incident_Type']} incidents closely. "
+        brief += f"Early action can prevent escalation.\n\n"
+    else:
+        brief += f"System stable at {stats['removal_pct']:.1f}% removal rate. "
+        brief += f"Continue routine monitoring. No immediate action required.\n\n"
     
-    report += "\n═══════════════════════════════════════════════════════════════════════════\n"
+    brief += "=" * 80 + "\n"
+    brief += "END OF SCHOOL CAMPUS DECISION BRIEF\n"
+    brief += "=" * 80 + "\n"
     
-    return report
+    return brief
 
-def generate_district_tea_report(df, tea_stats, 
-                                campus_name="Campus", reporting_period="Monthly", period_name="Current Period"):
-    """Generate District TEA Compliance Report"""
-    
-    date_min = df['Date'].min().strftime('%Y-%m-%d')
-    date_max = df['Date'].max().strftime('%Y-%m-%d')
-    
-    # Generate data hash
-    data_str = df.to_csv(index=False)
-    data_hash = hashlib.md5(data_str.encode()).hexdigest()[:8]
-    
-    report = f"""
-═══════════════════════════════════════════════════════════════════════════
-DISTRICT TEA COMPLIANCE REPORT
-═══════════════════════════════════════════════════════════════════════════
+# ============================================================================
+# DISTRICT TEA COMPLIANCE REPORT
+# ============================================================================
 
-Campus: {campus_name}
-Reporting Period: {reporting_period}
-Period: {period_name}
-Date Range: {date_min} to {date_max}
-State Mode: {STATE_MODE}
-Data Hash: {data_hash}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-═══════════════════════════════════════════════════════════════════════════
-TEA ACTION GROUP TOTALS
-═══════════════════════════════════════════════════════════════════════════
-
-Total Incidents: {tea_stats['total_incidents']}
-
-"""
+def generate_district_tea_report(df, campus_name="School Campus"):
+    """
+    Generate District TEA Compliance Report (District-Facing)
+    """
     
-    for group, count in sorted(tea_stats['tea_group_counts'].items()):
-        pct = (count / tea_stats['total_incidents'] * 100) if tea_stats['total_incidents'] > 0 else 0
-        report += f"{group}: {count} ({pct:.1f}%)\n"
+    stats = calculate_district_tea_stats(df)
+    data_hash = hashlib.md5(df.to_string().encode()).hexdigest()
     
-    report += f"\nTotal Removals: {tea_stats['removal_count']}\n\n"
+    report = ""
+    report += "=" * 80 + "\n"
+    report += "ATLAS DISCIPLINE INTELLIGENCE — DISTRICT TEA COMPLIANCE REPORT\n"
+    report += "=" * 80 + "\n\n"
     
-    report += """═══════════════════════════════════════════════════════════════════════════
-REMOVAL SUMMARY BY TEA CODE
-═══════════════════════════════════════════════════════════════════════════
-
-"""
+    report += f"**Campus:** {campus_name}\n"
+    report += f"**Date Range:** {df['Date'].min()} to {df['Date'].max()}\n"
+    report += f"**Data Hash:** {data_hash[:16]}...\n"
+    report += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    report += "─" * 80 + "\n\n"
     
-    for code, count in sorted(tea_stats['tea_action_counts'].items()):
-        if code != 'N/A':
-            report += f"Code {code}: {count} incidents\n"
+    # TEA Action Summary
+    report += "## TEA ACTION SUMMARY\n\n"
+    report += f"**Total Incidents:** {stats['total_incidents']}\n"
+    report += f"**Total TEA Actions:** {stats['total_tea_actions']} ({stats['tea_action_pct']:.1f}%)\n\n"
     
-    report += f"""
-═══════════════════════════════════════════════════════════════════════════
-TEA ACTION CODE DISTRIBUTION
-═══════════════════════════════════════════════════════════════════════════
-
-All Actions (including local responses):
-"""
+    report += "**TEA Action Groups:**\n\n"
+    for group, count in sorted(stats['tea_groups'].items()):
+        pct = (count / stats['total_incidents'] * 100) if stats['total_incidents'] > 0 else 0
+        report += f"- {group}: {count} ({pct:.1f}%)\n"
     
-    for code, count in sorted(tea_stats['tea_action_counts'].items()):
-        pct = (count / tea_stats['total_incidents'] * 100) if tea_stats['total_incidents'] > 0 else 0
-        report += f"Code {code}: {count} ({pct:.1f}%)\n"
+    report += "\n"
+    report += "─" * 80 + "\n\n"
     
-    report += f"""
-═══════════════════════════════════════════════════════════════════════════
-STATUTORY TRIGGER NOTICE
-═══════════════════════════════════════════════════════════════════════════
-
-DAEP Placements: {tea_stats['tea_group_counts'].get('DAEP', 0)}
-JJAEP Placements: {tea_stats['tea_group_counts'].get('JJAEP', 0)}
-Expulsions: {tea_stats['tea_group_counts'].get('EXPULSION', 0)}
-
-Note: Informational only. Consult legal counsel for compliance interpretation.
-
-"""
+    # Data Quality Note
+    report += "## DATA QUALITY NOTES\n\n"
     
-    report += "═══════════════════════════════════════════════════════════════════════════\n"
+    has_tea_codes = 'TEA_Action_Code' in df.columns
+    has_reason_codes = 'TEA_Action_Reason_Code' in df.columns
+    has_days_removed = 'Days_Removed' in df.columns
+    
+    report += f"- TEA Action Codes present: {'Yes' if has_tea_codes else 'No'}\n"
+    report += f"- TEA Reason Codes present: {'Yes' if has_reason_codes else 'No'}\n"
+    report += f"- Days_Removed data present: {'Yes' if has_days_removed else 'No'}\n\n"
+    
+    if not has_reason_codes:
+        report += "**Note:** Cannot validate statutory compliance without TEA Action Reason Codes.\n\n"
+    
+    report += "=" * 80 + "\n"
+    report += "END OF DISTRICT TEA COMPLIANCE REPORT\n"
+    report += "=" * 80 + "\n"
     
     return report

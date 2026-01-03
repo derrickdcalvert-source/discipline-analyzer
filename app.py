@@ -17,7 +17,7 @@ from discipline_analyzer import (
     apply_tea_mapping,
     calculate_school_brief_stats,
     calculate_district_tea_stats,
-    calculate_instructional_impact,
+    analyze_instructional_impact,  # ← CHANGED
     determine_posture_texas,
     generate_school_brief,
     generate_district_tea_report,
