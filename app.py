@@ -17,7 +17,7 @@ from discipline_analyzer import (
     apply_tea_mapping,
     calculate_school_brief_stats,
     calculate_district_tea_stats,
-    analyze_instructional_impact,  # ← CHANGED
+    calculate_instructional_impact,
     determine_posture_texas,
     generate_school_brief,
     generate_district_tea_report,
@@ -271,7 +271,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PDF Generation Functions
-def generate_school_brief_pdf(school_brief_text, posture, uploaded_filename, period_name):
+def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name):
     """Generate professional PDF for School Brief"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -712,19 +712,14 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         
                         # Generate reports
                         brief = generate_school_brief(
-                            df_campus, stats, posture, system_state, impact,
+                            df_campus, 
                             campus_name=campus,
-                            reporting_period=reporting_period,
-                            period_name=period_name
                         )
-                        
                         if STATE_MODE == "TEXAS_TEA":
                             tea_stats = calculate_district_tea_stats(df_campus)
                             tea_report = generate_district_tea_report(
-                                df_campus, tea_stats,
+                                df_campus,
                                 campus_name=campus,
-                                reporting_period=reporting_period,
-                                period_name=period_name
                             )
                         else:
                             tea_report = None
@@ -762,12 +757,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     
                     # Generate reports with period information
                     school_brief = generate_school_brief(
-                        df, school_stats, posture, system_state, impact,
+                        df, 
                         campus_name=campus_identifier,
-                        reporting_period=reporting_period,
-                        period_name=period_name
                     )
-                    
                     if STATE_MODE == "TEXAS_TEA":
                         tea_stats = calculate_district_tea_stats(df)
                         district_report = generate_district_tea_report(
@@ -873,7 +865,10 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             
                             # Download button
                             st.markdown("<br>", unsafe_allow_html=True)
-                            pdf_buffer = generate_school_brief_pdf(result['brief'], result['posture'], campus_name, period_name)
+                            pdf_buffer = generate_school_brief_pdf(
+                                result['brief'],
+                                uploaded_filename=campus_name,
+                                period_name=period_name,)
                             clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
                             clean_campus = campus_name.replace(' ', '_')
                             filename = f"school_brief_{clean_campus}_{clean_period}.pdf"
@@ -930,86 +925,34 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             else:
                 # Show mode and period info
                 st.info(f"📅 **{reporting_period} Report:** {period_name} | **Mode:** {mode}")
-            
-            # Key metrics
-            st.markdown("### Key Findings")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Decision Posture", posture)
-            
-            with col2:
-                st.metric("Total Incidents", f"{school_stats['total_incidents']:,}")
-            
-            with col3:
-                removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
-                if STATE_MODE == "TEXAS_TEA":
-                    removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
-                st.metric("Removal Rate", f"{removal_pct:.1f}%")
-            
-            # Reports tabs
-            st.markdown("<br>", unsafe_allow_html=True)
-            tab1, tab2 = st.tabs(["📄 School Brief", "📋 District TEA Report"])
-            
-            with tab1:
-                # Parse and display School Brief beautifully
-                st.markdown("### 📄 School Brief (Principal-Facing)")
                 
-                # Display formatted report
-                lines = school_brief.split('\n')
-                in_section = False
-                section_content = []
+                # Key metrics
+                st.markdown("### Key Findings")
+                col1, col2, col3 = st.columns(3)
                 
-                for line in lines:
-                    # Skip decoration lines
-                    if '═' in line or '─' in line:
-                        continue
-                    
-                    # Section headers
-                    if line.strip() and line.strip().isupper() and len(line.strip()) > 10:
-                        if section_content:
-                            st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
-                            section_content = []
-                        st.markdown(f"#### {line.strip()}")
-                        in_section = True
-                    # Content lines
-                    elif line.strip():
-                        # Highlight key metrics
-                        if 'Decision Posture:' in line or 'Overall System State:' in line:
-                            parts = line.split(':')
-                            if len(parts) == 2:
-                                st.markdown(f"**{parts[0]}:** <span style='color: #1e3a8a; font-weight: 700; font-size: 1.1rem;'>{parts[1]}</span>", unsafe_allow_html=True)
-                        elif line.startswith('Total Incidents:') or 'minutes' in line.lower() or 'days' in line.lower():
-                            st.markdown(f"**{line}**")
-                        else:
-                            section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                with col1:
+                    st.metric("Decision Posture", posture)
                 
-                # Flush remaining content
-                if section_content:
-                    st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                with col2:
+                    st.metric("Total Incidents", f"{school_stats['total_incidents']:,}")
                 
-                # Download PDF button with period-based filename
+                with col3:
+                    removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
+                    if STATE_MODE == "TEXAS_TEA":
+                        removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
+                    st.metric("Removal Rate", f"{removal_pct:.1f}%")
+                
+                # Reports tabs
                 st.markdown("<br>", unsafe_allow_html=True)
-                pdf_buffer = generate_school_brief_pdf(school_brief, posture, uploaded_files[0].name, period_name)
+                tab1, tab2 = st.tabs(["📄 School Brief", "📋 District TEA Report"])
                 
-                # Clean period name for filename
-                clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
-                filename = f"school_brief_{clean_period}.pdf"
-                
-                st.download_button(
-                    label="📥 Download School Brief (PDF)",
-                    data=pdf_buffer,
-                    file_name=filename,
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            
-            with tab2:
-                if STATE_MODE == "TEXAS_TEA":
-                    st.markdown("### 📋 District TEA Report (Compliance)")
+                with tab1:
+                    # Parse and display School Brief beautifully
+                    st.markdown("### 📄 School Brief (Principal-Facing)")
                     
-                    # Parse and display TEA Report
-                    lines = district_report.split('\n')
+                    # Display formatted report
+                    lines = school_brief.split('\n')
+                    in_section = False
                     section_content = []
                     
                     for line in lines:
@@ -1020,38 +963,90 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         # Section headers
                         if line.strip() and line.strip().isupper() and len(line.strip()) > 10:
                             if section_content:
-                                st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                                st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                                 section_content = []
                             st.markdown(f"#### {line.strip()}")
+                            in_section = True
                         # Content lines
                         elif line.strip():
-                            # Highlight TEA codes and percentages
-                            if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
+                            # Highlight key metrics
+                            if 'Decision Posture:' in line or 'Overall System State:' in line:
+                                parts = line.split(':')
+                                if len(parts) == 2:
+                                    st.markdown(f"**{parts[0]}:** <span style='color: #1e3a8a; font-weight: 700; font-size: 1.1rem;'>{parts[1]}</span>", unsafe_allow_html=True)
+                            elif line.startswith('Total Incidents:') or 'minutes' in line.lower() or 'days' in line.lower():
                                 st.markdown(f"**{line}**")
                             else:
                                 section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
                     
                     # Flush remaining content
                     if section_content:
-                        st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                        st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                     
                     # Download PDF button with period-based filename
                     st.markdown("<br>", unsafe_allow_html=True)
-                    pdf_buffer = generate_district_tea_pdf(district_report, uploaded_files[0].name, period_name)
+                    pdf_buffer = generate_school_brief_pdf(school_brief, uploaded_files[0].name, period_name)
                     
                     # Clean period name for filename
                     clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
-                    filename = f"district_tea_report_{clean_period}.pdf"
+                    filename = f"school_brief_{clean_period}.pdf"
                     
                     st.download_button(
-                        label="📥 Download District Report (PDF)",
+                        label="📥 Download School Brief (PDF)",
                         data=pdf_buffer,
                         file_name=filename,
                         mime="application/pdf",
                         use_container_width=True
                     )
-                else:
-                    st.info("District TEA Report only available in Texas mode")
+                
+                with tab2:
+                    if STATE_MODE == "TEXAS_TEA":
+                        st.markdown("### 📋 District TEA Report (Compliance)")
+                        
+                        # Parse and display TEA Report
+                        lines = district_report.split('\n')
+                        section_content = []
+                        
+                        for line in lines:
+                            # Skip decoration lines
+                            if '═' in line or '─' in line:
+                                continue
+                            
+                            # Section headers
+                            if line.strip() and line.strip().isupper() and len(line.strip()) > 10:
+                                if section_content:
+                                    st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                                    section_content = []
+                                st.markdown(f"#### {line.strip()}")
+                            # Content lines
+                            elif line.strip():
+                                # Highlight TEA codes and percentages
+                                if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
+                                    st.markdown(f"**{line}**")
+                                else:
+                                    section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                        
+                        # Flush remaining content
+                        if section_content:
+                            st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
+                        
+                        # Download PDF button with period-based filename
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        pdf_buffer = generate_district_tea_pdf(district_report, uploaded_files[0].name, period_name)
+                        
+                        # Clean period name for filename
+                        clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
+                        filename = f"district_tea_report_{clean_period}.pdf"
+                        
+                        st.download_button(
+                            label="📥 Download District Report (PDF)",
+                            data=pdf_buffer,
+                            file_name=filename,
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.info("District TEA Report only available in Texas mode")
         
     except Exception as e:
         st.error(f"❌ Error processing file: {str(e)}")

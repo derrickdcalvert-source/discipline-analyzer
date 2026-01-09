@@ -230,12 +230,9 @@ def analyze_instructional_impact(df, state_mode="TEXAS_TEA"):
         'total_days': round(total_days, 1),
         'grade_distribution': grade_distribution
     }
-
 # Backward compatibility alias
 def calculate_instructional_impact(df, state_mode="TEXAS_TEA"):
-    """
-    Backward compatibility wrapper for analyze_instructional_impact
-    """
+    """Backward compatiibility wrapper"""
     return analyze_instructional_impact(df, state_mode)
 
 # ============================================================================
