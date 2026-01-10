@@ -696,35 +696,60 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     # Process each campus
                     for campus in sorted(all_campus_values):
                         df_campus = df[df['Campus'] == campus].copy()
-                        
+                    # -------------------------------
+            # DISTRICT TEA REPORT (SIMPLE)
+            # -------------------------------
+            if len(campus_results) > 1:
+                district_df = pd.concat(
+                    [result["df"] for result in campus_results.values()],
+                    ignore_index=True
+                )
+
+                st.markdown("---")
+                st.header("📋 District TEA Compliance Report")
+
+                district_report = generate_district_tea_report(
+                    district_df,
+                    campus_name="District (All Campuses)"
+                )
+
+                st.markdown(district_report)
+
+                st.download_button(
+                    label="📥 Download District TEA Report (TXT)",
+                    data=district_report,
+                    file_name="district_tea_report.txt",
+                    mime="text/plain",
+                )
+                
                         # Calculate stats
-                        stats = calculate_school_brief_stats(df_campus)
+                stats = calculate_school_brief_stats(df_campus)
                         
                         # Determine posture
-                        if STATE_MODE == "TEXAS_TEA":
+                if STATE_MODE == "TEXAS_TEA":
                             posture, system_state = determine_posture_texas(stats)
-                        else:
+                else:
                             from discipline_analyzer import determine_posture_default
                             posture, system_state = determine_posture_default(stats)
                         
                         # Calculate impact
-                        impact = calculate_instructional_impact(df_campus)
+                impact = calculate_instructional_impact(df_campus)
                         
                         # Generate reports
-                        brief = generate_school_brief(
+                brief = generate_school_brief(
                             df_campus, 
                             campus_name=campus,
                         )
-                        if STATE_MODE == "TEXAS_TEA":
+                if STATE_MODE == "TEXAS_TEA":
                             tea_stats = calculate_district_tea_stats(df_campus)
                             tea_report = generate_district_tea_report(
                                 df_campus,
                                 campus_name=campus,
                             )
-                        else:
+                else:
                             tea_report = None
                         
-                        campus_results[campus] = {
+                campus_results[campus] = {
                             'df': df_campus,
                             'stats': stats,
                             'posture': posture,
