@@ -21,6 +21,7 @@ from discipline_analyzer import (
     determine_posture_texas,
     generate_school_brief,
     generate_district_tea_report,
+    generate_district_consolidated_report,
     STATE_MODE
 )
 
@@ -491,7 +492,94 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
     doc.build(story)
     buffer.seek(0)
     return buffer
-
+def generate_district_consolidated_report_pdf(district_report_text, period_name):
+    """Generate professional PDF for District Consolidated Report"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceAfter=6,
+        alignment=TA_CENTER
+    )
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceBefore=12,
+        spaceAfter=8,
+        bold=True
+    )
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#1f2937'),
+        spaceAfter=6,
+        leading=14
+    )
+    
+    # Header
+    story.append(Paragraph("📊 District Consolidated Report", title_style))
+    story.append(Paragraph(f"Multi-Campus Analysis — {period_name}", subtitle_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Parse report sections
+    lines = district_report_text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or '═' in line or '─' in line:
+            continue
+        
+        # Section headers (## markers)
+        if line.startswith('## '):
+            story.append(Spacer(1, 0.15*inch))
+            story.append(Paragraph(line.replace('## ', ''), heading_style))
+        # Bold items
+        elif line.startswith('**') and line.endswith('**'):
+            clean_line = line.replace('**', '')
+            story.append(Paragraph(f"<b>{clean_line}</b>", body_style))
+        # Key metrics
+        elif any(keyword in line for keyword in ['ESCALATE', 'INTERVENE', 'CALIBRATE', 'STABLE', 'Total:', 'removal rate', '%']):
+            story.append(Paragraph(f"<b>{line}</b>", body_style))
+        # List items
+        elif line.startswith('- '):
+            story.append(Paragraph(f"• {line[2:]}", body_style))
+        # Regular content
+        else:
+            story.append(Paragraph(line, body_style))
+    
+    # Footer
+    story.append(Spacer(1, 0.4*inch))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("Powered by Empower52 | www.empower52.com", footer_style))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 # Header
 st.markdown("# 📊 Discipline Decision Brief Analyzer")
 st.markdown('<div class="subtitle">Texas TEA Compliance Mode | Deterministic Rules-Based Analysis | **Multi-File Support**</div>', unsafe_allow_html=True)
@@ -696,60 +784,35 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     # Process each campus
                     for campus in sorted(all_campus_values):
                         df_campus = df[df['Campus'] == campus].copy()
-                    # -------------------------------
-            # DISTRICT TEA REPORT (SIMPLE)
-            # -------------------------------
-            if len(campus_results) > 1:
-                district_df = pd.concat(
-                    [result["df"] for result in campus_results.values()],
-                    ignore_index=True
-                )
-
-                st.markdown("---")
-                st.header("📋 District TEA Compliance Report")
-
-                district_report = generate_district_tea_report(
-                    district_df,
-                    campus_name="District (All Campuses)"
-                )
-
-                st.markdown(district_report)
-
-                st.download_button(
-                    label="📥 Download District TEA Report (TXT)",
-                    data=district_report,
-                    file_name="district_tea_report.txt",
-                    mime="text/plain",
-                )
-                
+                        
                         # Calculate stats
-                stats = calculate_school_brief_stats(df_campus)
+                        stats = calculate_school_brief_stats(df_campus)
                         
                         # Determine posture
-                if STATE_MODE == "TEXAS_TEA":
+                        if STATE_MODE == "TEXAS_TEA":
                             posture, system_state = determine_posture_texas(stats)
-                else:
+                        else:
                             from discipline_analyzer import determine_posture_default
                             posture, system_state = determine_posture_default(stats)
                         
                         # Calculate impact
-                impact = calculate_instructional_impact(df_campus)
+                        impact = calculate_instructional_impact(df_campus)
                         
                         # Generate reports
-                brief = generate_school_brief(
+                        brief = generate_school_brief(
                             df_campus, 
                             campus_name=campus,
                         )
-                if STATE_MODE == "TEXAS_TEA":
+                        if STATE_MODE == "TEXAS_TEA":
                             tea_stats = calculate_district_tea_stats(df_campus)
                             tea_report = generate_district_tea_report(
                                 df_campus,
                                 campus_name=campus,
                             )
-                else:
+                        else:
                             tea_report = None
                         
-                campus_results[campus] = {
+                        campus_results[campus] = {
                             'df': df_campus,
                             'stats': stats,
                             'posture': posture,
@@ -788,15 +851,13 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     if STATE_MODE == "TEXAS_TEA":
                         tea_stats = calculate_district_tea_stats(df)
                         district_report = generate_district_tea_report(
-                            df, tea_stats,
-                            campus_name=campus_identifier,
-                            reporting_period=reporting_period,
-                            period_name=period_name
+                            df,
+                            campus_name=f"District (All Campuses) - {campus_identifier}",
                         )
             
             # Success message
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.success("✅ **Analysis Complete!**")
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.success("✅ **Analysis Complete!**")
             
             # MULTI-CAMPUS DISPLAY
             if mode == "MULTI-CAMPUS":
@@ -804,46 +865,125 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 
                 # District Summary
                 st.markdown("### 🏫 District Summary")
+                # Create tabs: District Summary + Individual Campuses
+                all_tab_names = ["🏫 District Summary"] + sorted(campus_results.keys())
+                all_tabs = st.tabs(all_tab_names)
                 
-                # Create summary table
-                summary_data = []
-                for campus_name, result in sorted(campus_results.items()):
-                    summary_data.append({
-                        'Campus': campus_name,
-                        'Posture': result['posture'],
-                        'Incidents': result['stats']['total_incidents'],
-                        'Removal Rate': f"{result['stats']['removal_pct']:.1f}%",
-                        'OSS Rate': f"{result['stats']['OSS_pct']:.1f}%"
-                    })
+                # ==========================================
+                # TAB 0: DISTRICT SUMMARY
+                # ==========================================
+                with all_tabs[0]:
+                    st.markdown("### District Overview")
+                    
+                    # Create summary table
+                    summary_data = []
+                    for campus_name, result in sorted(campus_results.items()):
+                        summary_data.append({
+                            'Campus': campus_name,
+                            'Posture': result['posture'],
+                            'Incidents': result['stats']['total_incidents'],
+                            'Removal Rate': f"{result['stats']['removal_pct']:.1f}%",
+                            'OSS Rate': f"{result['stats']['OSS_pct']:.1f}%"
+                        })
+                    
+                    summary_df = pd.DataFrame(summary_data)
+                    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                    
+                    # Watchlist
+                    st.markdown("### ⚠️ District Watchlist")
+                    watchlist_campuses = [
+                        campus for campus, result in campus_results.items()
+                        if result['posture'] in ['ESCALATE', 'INTERVENE']
+                    ]
+                    
+                    if watchlist_campuses:
+                        for campus in sorted(watchlist_campuses):
+                            result = campus_results[campus]
+                            st.warning(f"**{campus}**: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate")
+                    else:
+                       st.success("No campuses requiring immediate attention")
+                    
+                # District TEA Report (formatted)
+                if len(campus_results) > 1:
+                    st.markdown("---")
+                    st.markdown("### 📋 District TEA Compliance Report")
+                    
+                    district_df = pd.concat(
+                        [result["df"] for result in campus_results.values()],
+                        ignore_index=True
+                    )
+                    # Generate district report (ONCE, not twice)
+                    district_report_text = generate_district_consolidated_report(
+                        campus_results,
+                        district_name="District (All Campuses)"
+                    )
+                    
+                    # Format the report with same styling as campus briefs
+                    lines = district_report_text.split('\n')
+                    section_content = []
+                    
+                    for line in lines:
+                        # Skip separator lines
+                        if '═' in line or '─' in line or 'END OF' in line:
+                            continue
+                            
+                        # Section headers (## style)
+                        if line.strip().startswith('##'):
+                            if section_content:
+                                st.markdown(
+                                    '<div style="background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + 
+                                    '<br>'.join(section_content) + 
+                                    '</div>', 
+                                    unsafe_allow_html=True
+                                )
+                                section_content = []
+                            st.markdown(f"#### {line.replace('##', '').strip()}")
+                            
+                        # Content lines
+                        elif line.strip():
+                            # Bold metadata lines
+                            if line.startswith('**') or ':' in line:
+                                section_content.append(f"<strong>{line.replace('**', '')}</strong>")
+                            else:
+                                section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                    
+                    # Flush final section (OUTSIDE the loop)
+                    if section_content:
+                        st.markdown(
+                            '<div style="background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + 
+                            '<br>'.join(section_content) + 
+                            '</div>', 
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Download button (OUTSIDE the loop, with unique key)
+                    st.download_button(
+                        label="⬇️ Download District Report (TXT)",
+                        data=district_report_text,
+                        file_name="district_consolidated_report.txt",
+                        mime="text/plain",
+                        key="district_tea_report_download"
+                    )
+                    # PDF Download button
+                    district_pdf = generate_district_consolidated_report_pdf(
+                        district_report_text,
+                        period_name
+                    )
+                    st.download_button(
+                        label="⬇️ Download District Report (PDF)",
+                        data=district_pdf,
+                        file_name="district_consolidated_report.pdf",
+                        mime="application/pdf",
+                        key="district_consolidated_pdf_download"
+                    )
                 
-                summary_df = pd.DataFrame(summary_data)
-                st.dataframe(summary_df, use_container_width=True, hide_index=True)
-                
-                # Watchlist
-                st.markdown("### ⚠️ District Watchlist")
-                watchlist_campuses = [
-                    campus for campus, result in campus_results.items()
-                    if result['posture'] in ['ESCALATE', 'INTERVENE']
-                ]
-                
-                if watchlist_campuses:
-                    for campus in sorted(watchlist_campuses):
-                        result = campus_results[campus]
-                        st.warning(f"**{campus}**: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate")
-                else:
-                    st.success("No campuses requiring immediate attention")
-                
-                # Individual Campus Reports
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("### 📊 Individual Campus Reports")
-                
-                # Create tabs for each campus
-                campus_tabs = st.tabs([campus for campus in sorted(campus_results.keys())])
-                
+                # ==========================================
+                # TABS 1+: INDIVIDUAL CAMPUSES
+                # ==========================================
                 for idx, campus_name in enumerate(sorted(campus_results.keys())):
-                    with campus_tabs[idx]:
+                    with all_tabs[idx + 1]:  # +1 because district is tab 0
                         result = campus_results[campus_name]
-                        
+                    
                         # Campus metrics
                         col1, col2, col3 = st.columns(3)
                         with col1:
@@ -855,10 +995,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             if STATE_MODE == "TEXAS_TEA":
                                 removal_pct += result['stats']['DAEP_pct'] + result['stats']['JJAEP_pct']
                             st.metric("Removal Rate", f"{removal_pct:.1f}%")
-                        
                         # Reports sub-tabs
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        sub_tab1, sub_tab2 = st.tabs(["📄 School Brief", "📋 District TEA Report"])
+                        sub_tab1, sub_tab2 = st.tabs(["📄 School Brief", "📋 TEA Report"])
                         
                         with sub_tab1:
                             st.markdown(f"### 📄 {campus_name} — School Brief")
@@ -902,7 +1040,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                 data=pdf_buffer,
                                 file_name=filename,
                                 mime="application/pdf",
-                                use_container_width=True
+                                use_container_width=True,
+                                key=f"campus_brief_{campus_name.replace(' ', '_')}_download"
                             )
                         
                         with sub_tab2:
@@ -941,7 +1080,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                     data=pdf_buffer,
                                     file_name=filename,
                                     mime="application/pdf",
-                                    use_container_width=True
+                                    use_container_width=True,
+                                    key=f"campus_tea_{campus_name.replace(' ', '_')}_download"
                                 )
                             else:
                                 st.info("District TEA Report only available in Texas mode")
@@ -1021,7 +1161,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         data=pdf_buffer,
                         file_name=filename,
                         mime="application/pdf",
-                        use_container_width=True
+                        use_container_width=True,
+                        key=f"school_brief_{campus_name.replace(' ', '_')}_download"
                     )
                 
                 with tab2:
@@ -1068,7 +1209,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             data=pdf_buffer,
                             file_name=filename,
                             mime="application/pdf",
-                            use_container_width=True
+                            use_container_width=True,
+                            key="district_report_pdf_download"
                         )
                     else:
                         st.info("District TEA Report only available in Texas mode")

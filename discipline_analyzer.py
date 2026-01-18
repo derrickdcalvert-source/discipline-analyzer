@@ -213,7 +213,7 @@ def analyze_instructional_impact(df, state_mode="TEXAS_TEA"):
     
     # Calculate by grade
     grade_distribution = {}
-    for grade in sorted(removal_df['Grade'].unique()):
+    for grade in sorted(removal_df['Grade'].unique(), key=lambda x: (str(x).isdigit() is False, str(x))):
         grade_data = removal_df[removal_df['Grade'] == grade]
         grade_days = grade_data['Days_Removed'].sum()
         grade_minutes = grade_days * MINUTES_PER_DAY
@@ -413,7 +413,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += "```\n"
         
         # Sort by grade and display in table format
-        for grade in sorted(impact['grade_distribution'].keys()):
+        for grade in sorted(impact['grade_distribution'].keys(), key=str):
             data = impact['grade_distribution'][grade]
             days = data['Days_Removed']
             minutes = data['Minutes_Lost']
@@ -737,5 +737,164 @@ def generate_district_tea_report(df, campus_name="School Campus"):
     report += "=" * 80 + "\n"
     report += "END OF DISTRICT TEA COMPLIANCE REPORT\n"
     report += "=" * 80 + "\n"
+    
+    return report
+# =============================================================================
+# DISTRICT CONSOLIDATED REPORT GENERATION
+# =============================================================================
+
+def generate_district_consolidated_report(campus_results, district_name="District (All Campuses)"):
+    """
+    Generate consolidated district report with same 14-section structure as School Brief
+    
+    Args:
+        campus_results: Dictionary of {campus_name: {df, stats, posture, system_state, impact, brief}}
+        district_name: Name for the district
+        
+    Returns:
+        String containing formatted district report
+    """
+    from datetime import datetime
+    import hashlib
+    
+    # Extract dataframes correctly
+    all_dfs = []
+    for campus_name, result in campus_results.items():
+        if isinstance(result, dict) and 'df' in result:
+            all_dfs.append(result['df'])
+    # Combine dataframes
+    if len(all_dfs) == 0:
+        raise ValueError("No dataframes found in campus_results")
+    elif len(all_dfs) == 1:
+        district_df = all_dfs[0]
+    else:
+        district_df = pd.concat(all_dfs, ignore_index=True)
+
+    # Determine district posture
+    district_stats = calculate_school_brief_stats(district_df)
+
+    district_posture, district_system_state = determine_posture_texas(district_stats)
+
+    # Calculate district impact
+    district_impact = calculate_instructional_impact(district_df)
+    
+    # Build header
+    date_range_start = district_df['Date'].min()
+    date_range_end = district_df['Date'].max()
+    data_hash = hashlib.md5(str(len(district_df)).encode()).hexdigest()[:16]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    report = f"""{'='*80}
+ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
+{'='*80}
+
+**District:** {district_name}
+**Campuses:** {len(campus_results)}
+**Date Range:** {date_range_start} to {date_range_end}
+**State Mode:** TEXAS_TEA
+**Data Hash:** {data_hash}...
+**Generated:** {timestamp}
+
+{'─'*80}
+
+## DISCIPLINE SYSTEM STATUS — AT A GLANCE
+
+**Overall System State:** {district_system_state}
+**Decision Posture:** {district_posture}
+**Leadership Interpretation:** District operates at {district_stats['removal_pct']:.1f}% removal rate across {len(campus_results)} campuses. {len([c for c in campus_results.values() if c['posture'] in ['ESCALATE', 'INTERVENE']])} campus(es) require immediate attention.
+
+{'─'*80}
+
+## RESPONSE / REMOVAL SNAPSHOT
+
+**Total Incidents:** {district_stats['total_incidents']}
+
+**Response Distribution:**
+- LOCAL_ONLY: {district_stats['LOCAL_ONLY']} ({district_stats['LOCAL_ONLY_pct']:.1f}%)
+- ISS: {district_stats['ISS']} ({district_stats['ISS_pct']:.1f}%)
+- OSS: {district_stats['OSS']} ({district_stats['OSS_pct']:.1f}%)
+- DAEP: {district_stats['DAEP']} ({district_stats['DAEP_pct']:.1f}%)
+- JJAEP: {district_stats['JJAEP']} ({district_stats['JJAEP_pct']:.1f}%)
+- EXPULSION: {district_stats['Expulsion']} ({district_stats['Expulsion_pct']:.1f}%)
+
+**Total Removals:** {district_stats['total_removals']} ({district_stats['removal_pct']:.1f}%)
+
+{'─'*80}
+
+## CAMPUS-LEVEL POSTURE ANALYSIS
+
+## CAMPUS-LEVEL POSTURE ANALYSIS
+
+**Posture Distribution:**
+"""
+    
+    # Count campuses by posture
+    posture_counts = {}
+    for result in campus_results.values():
+        p = result['posture']
+        posture_counts[p] = posture_counts.get(p, 0) + 1
+    
+    for posture in ['ESCALATE', 'INTERVENE', 'CALIBRATE', 'STABLE']:
+        count = posture_counts.get(posture, 0)
+        report += f"- {posture}: {count} campus(es)\n"
+    
+    report += f"\n**High-Priority Campuses:**\n"
+    watchlist = [(name, r) for name, r in campus_results.items() if r['posture'] in ['ESCALATE', 'INTERVENE']]
+    if watchlist:
+        for campus_name, result in sorted(watchlist, key=lambda x: x[1]['stats']['removal_pct'], reverse=True):
+            report += f"- {campus_name}: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate\n"
+    else:
+        report += "- None requiring immediate attention\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+    # Top incident types (district-wide)
+    incident_counts = district_df['Incident_Type'].value_counts().head(3)
+    report += "## TOP INCIDENT TYPES (DISTRICT-WIDE)\n\n**Top 3 by Volume:**\n"
+    for incident_type, count in incident_counts.items():
+        incidents_of_type = district_df[district_df['Incident_Type'] == incident_type]
+        removals = incidents_of_type[incidents_of_type['Response'].isin(['ISS', 'OSS', 'DAEP', 'JJAEP', 'Expulsion'])].shape[0]
+        removal_rate = (removals / count * 100) if count > 0 else 0
+        report += f"- {incident_type}: {count} incidents, {removal_rate:.1f}% removal rate\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+# Instructional Impact
+    report += "## INSTRUCTIONAL IMPACT (DISTRICT-WIDE)\n\n"
+    
+    # Calculate total from all campuses
+    total_minutes = sum(r['impact'].get('total_minutes', 0) for r in campus_results.values() if r.get('impact'))
+    total_days = sum(r['impact'].get('total_days', 0) for r in campus_results.values() if r.get('impact'))
+    
+    if total_days > 0:
+        report += f"**TOTAL:** {total_minutes:,.0f} minutes ({total_days:.1f} days)\n\n"
+        report += "**Impact by Campus:**\n"
+        for campus_name, result in sorted(campus_results.items(), key=lambda x: x[1]['impact'].get('total_days', 0), reverse=True):
+            days = result['impact'].get('total_days', 0)
+            if days > 0:
+                report += f"- {campus_name}: {days:.1f} days\n"
+        
+        report += "\n**STAAR & Accountability Context:**\n"
+        report += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n"
+    else:
+        report += "*Instructional impact data not available*\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+    # Bottom line
+    report += "## BOTTOM LINE FOR DISTRICT LEADERSHIP\n\n"
+    escalate_count = len([c for c in campus_results.values() if c['posture'] == 'ESCALATE'])
+    intervene_count = len([c for c in campus_results.values() if c['posture'] == 'INTERVENE'])
+    
+    if escalate_count > 0:
+        report += f"District faces crisis-level pressure with {escalate_count} campus(es) in ESCALATE posture. "
+    if intervene_count > 0:
+        report += f"{intervene_count} additional campus(es) require intervention. "
+    
+    report += f"District-wide removal rate at {district_stats['removal_pct']:.1f}%. Immediate executive attention required for high-priority campuses.\n"
+    
+    report += f"\n{'='*80}\n"
+    report += "END OF DISTRICT CONSOLIDATED REPORT\n"
+    report += f"{'='*80}\n"
     
     return report
