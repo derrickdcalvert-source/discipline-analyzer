@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import sys
 import sys
 from io import StringIO, BytesIO
 import tempfile
@@ -22,6 +26,7 @@ from discipline_analyzer import (
     generate_school_brief,
     generate_district_tea_report,
     generate_district_consolidated_report,
+    generate_posture_gauge,
     STATE_MODE
 )
 
@@ -983,8 +988,19 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 for idx, campus_name in enumerate(sorted(campus_results.keys())):
                     with all_tabs[idx + 1]:  # +1 because district is tab 0
                         result = campus_results[campus_name]
-                    
+                        # Generate and display posture gauge
+                        gauge_fig = generate_posture_gauge(
+                            result['stats']['removal_pct'],
+                            result['stats']['OSS_pct'],
+                            result['stats'].get('expulsion_count', 0),
+                            result['posture']
+                        )
+                        if gauge_fig:
+                            st.pyplot(gauge_fig)
+                            plt.close(gauge_fig)
+                        
                         # Campus metrics
+                        st.markdown("<br>", unsafe_allow_html=True)
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.metric("Decision Posture", result['posture'])
@@ -1090,6 +1106,23 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             else:
                 # Show mode and period info
                 st.info(f"📅 **{reporting_period} Report:** {period_name} | **Mode:** {mode}")
+                # Calculate removal rate for gauge
+                removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
+                if STATE_MODE == "TEXAS_TEA":
+                    removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
+                
+                # Generate and display posture gauge
+                gauge_fig = generate_posture_gauge(
+                    removal_pct,
+                    school_stats['OSS_pct'],
+                    school_stats.get('expulsion_count', 0),
+                    posture
+                )
+                if gauge_fig:
+                    st.pyplot(gauge_fig)
+                    plt.close(gauge_fig)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
                 
                 # Key metrics
                 st.markdown("### Key Findings")
@@ -1102,9 +1135,6 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     st.metric("Total Incidents", f"{school_stats['total_incidents']:,}")
                 
                 with col3:
-                    removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
-                    if STATE_MODE == "TEXAS_TEA":
-                        removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
                     st.metric("Removal Rate", f"{removal_pct:.1f}%")
                 
                 # Reports tabs

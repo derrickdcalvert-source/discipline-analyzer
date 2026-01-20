@@ -9,10 +9,13 @@ Changes in this version:
 - Chronic absenteeism context added
 """
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.figure import Figure
+import pandas
 import pandas as pd
 import hashlib
 from datetime import datetime
-
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -898,3 +901,149 @@ ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
     report += f"{'='*80}\n"
     
     return report
+"""
+POSTURE GAUGE FUNCTION
+
+Required imports (add to top of discipline_analyzer.py):
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.figure import Figure
+"""
+
+def generate_posture_gauge(removal_rate, oss_rate, expulsion_count, posture):
+    """
+    Generates matplotlib figure showing discipline posture gauge.
+    
+    Args:
+        removal_rate (float): Overall removal percentage (0-100)
+        oss_rate (float): OSS percentage (0-100)
+        expulsion_count (int): Total expulsions
+        posture (str): Calculated posture (STABLE/CALIBRATE/INTERVENE/ESCALATE)
+        
+    Returns:
+        matplotlib.figure.Figure: Gauge visualization, or None if data invalid
+    """
+    
+    # Validation
+    if removal_rate is None or posture not in ['STABLE', 'CALIBRATE', 'INTERVENE', 'ESCALATE']:
+        return None
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 2.5), dpi=150)
+    fig.patch.set_facecolor('white')
+    
+    # Color palette (locked)
+    colors = {
+        'STABLE': '#2E7D32',      # Dark green
+        'CALIBRATE': '#FBC02D',   # Yellow
+        'INTERVENE': '#FF6F00',   # Bright orange
+        'ESCALATE': '#B71C1C'     # Deep red
+    }
+    
+    # Zone boundaries with gaps
+    zones = [
+        {'name': 'STABLE', 'start': 0, 'end': 35, 'color': colors['STABLE']},
+        {'name': 'CALIBRATE', 'start': 35.05, 'end': 45, 'color': colors['CALIBRATE']},
+        {'name': 'INTERVENE', 'start': 45.05, 'end': 60, 'color': colors['INTERVENE']},
+        {'name': 'ESCALATE', 'start': 60.05, 'end': 100, 'color': colors['ESCALATE']}
+    ]
+    
+    # Draw zones
+    for zone in zones:
+        rect = mpatches.Rectangle(
+            (zone['start'], 0), 
+            zone['end'] - zone['start'], 
+            1,
+            facecolor=zone['color'],
+            edgecolor='black',
+            linewidth=2
+        )
+        ax.add_patch(rect)
+        
+        # Add zone label
+        mid_point = (zone['start'] + zone['end']) / 2
+        ax.text(
+            mid_point, 
+            0.5, 
+            zone['name'],
+            ha='center',
+            va='center',
+            fontsize=11,
+            fontweight='bold',
+            color='white'
+        )
+    # Draw threshold lines
+    for threshold in [35, 45, 60]:
+        ax.axvline(x=threshold, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    
+    # Draw pointer (triangle pointing to current position)
+    pointer_x = removal_rate
+    pointer_y = 1.05
+    triangle = mpatches.Polygon(
+        [[pointer_x - 1.5, pointer_y + 0.15], 
+         [pointer_x + 1.5, pointer_y + 0.15], 
+         [pointer_x, pointer_y]],
+        closed=True,
+        facecolor='black',
+        edgecolor='black',
+        linewidth=2
+    )
+    ax.add_patch(triangle)
+    
+    # Add percentage marker at pointer
+    ax.text(
+        pointer_x,
+        pointer_y + 0.25,
+        f'{removal_rate:.1f}%',
+        ha='center',
+        va='bottom',
+        fontsize=10,
+        fontweight='bold'
+    )
+    
+    # Calculate distance to next threshold
+    if removal_rate < 35:
+        distance = 35 - removal_rate
+        next_threshold = "CALIBRATE (35%)"
+    elif removal_rate < 45:
+        distance = 45 - removal_rate
+        next_threshold = "INTERVENE (45%)"
+    elif removal_rate < 60:
+        distance = 60 - removal_rate
+        next_threshold = "ESCALATE (60%)"
+    else:
+        distance = None
+        next_threshold = "Maximum threshold"
+    
+    # Add status text below gauge
+    status_text = f"Current Status: {posture} | Removal Rate: {removal_rate:.1f}%"
+    if distance:
+        status_text += f" | Distance to {next_threshold}: {distance:.1f} points"
+    
+    ax.text(
+        50,
+        -0.3,
+        status_text,
+        ha='center',
+        va='top',
+        fontsize=10
+    )
+    
+    # Configure axes
+    ax.set_xlim(-2, 102)
+    ax.set_ylim(-0.5, 1.5)
+    ax.set_xticks([0, 35, 45, 60, 100])
+    ax.set_xticklabels(['0%', '35%', '45%', '60%', '100%'])
+    ax.set_yticks([])
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    ax.set_title('DISCIPLINE SYSTEM POSTURE', fontsize=12, fontweight='bold', pad=20)
+    
+    plt.tight_layout()
+    
+    return fig
+
