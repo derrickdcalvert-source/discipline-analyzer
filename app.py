@@ -12,9 +12,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
-
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
@@ -277,7 +276,295 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PDF Generation Functions
-def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name):
+# =============================================================================
+# CHART GENERATION FUNCTIONS FOR PDF INTEGRATION
+# =============================================================================
+# Add these functions to discipline_analyzer.py before the posture gauge function
+
+import numpy as np
+
+def calculate_grade_removal_rates(df):
+    """
+    Calculate removal rates by grade level for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Grade' and 'Is_Removal' columns
+    
+    Returns:
+    --------
+    tuple : (grade_data dict, campus_avg float)
+    """
+    # Count total incidents and removals by grade
+    grade_stats = df.groupby('Grade').agg({
+        'Is_Removal': ['count', 'sum']
+    }).reset_index()
+    
+    grade_stats.columns = ['Grade', 'total_incidents', 'removal_incidents']
+    
+    # Calculate removal rate per grade
+    grade_stats['removal_rate'] = (grade_stats['removal_incidents'] / grade_stats['total_incidents'] * 100).round(1)
+    
+    # Create dictionary for chart
+    grade_data = dict(zip(grade_stats['Grade'].astype(str), grade_stats['removal_rate']))
+    
+    # Calculate campus-wide average removal rate
+    total_incidents = len(df)
+    total_removals = df['Is_Removal'].sum()
+    campus_avg = round((total_removals / total_incidents * 100), 1) if total_incidents > 0 else 0
+    
+    return grade_data, campus_avg
+
+
+def generate_grade_level_removal_chart_pdf(grade_data, campus_avg):
+    """
+    Generate grade-level removal rate chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not grade_data:
+        return None
+    
+    # Sort grades in logical order (K, 1-12)
+    grade_order = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+    
+    # Filter to only grades present in data and maintain order
+    grades = [g for g in grade_order if g in grade_data]
+    removal_rates = [grade_data[g] for g in grades]
+    
+    if not grades:
+        return None
+    
+    # Determine colors based on variance from campus average
+    colors = ['#FF8C42' if rate > campus_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(grades))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add campus average reference line
+    ax.axvline(campus_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(grades, fontsize=10)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Grade-Level Removal Rates', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch], 
+              loc='lower right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_time_block_distribution(df):
+    """
+    Calculate incident distribution by time block for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Time_Block' column
+    
+    Returns:
+    --------
+    tuple : (time_block_data dict, avg_incidents float)
+    """
+    # Count incidents per time block
+    time_block_counts = df['Time_Block'].value_counts().to_dict()
+    
+    # Calculate average incidents per time block
+    avg_incidents = round(sum(time_block_counts.values()) / len(time_block_counts), 1) if time_block_counts else 0
+    
+    return time_block_counts, avg_incidents
+
+
+def generate_time_block_distribution_chart_pdf(time_block_data, avg_incidents):
+    """
+    Generate time block distribution chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not time_block_data:
+        return None
+    
+    # Define standard time block order
+    time_order = ['Early Morning', 'Morning', 'Mid-Morning', 'Lunch', 'Afternoon', 'Late Afternoon', 'After School']
+    
+    # Filter to only time blocks present in data and maintain order
+    time_blocks = [t for t in time_order if t in time_block_data]
+    incident_counts = [time_block_data[t] for t in time_blocks]
+    
+    # If no standard blocks found, use whatever blocks exist (sorted by count)
+    if not time_blocks:
+        sorted_items = sorted(time_block_data.items(), key=lambda x: x[1], reverse=True)
+        time_blocks = [item[0] for item in sorted_items]
+        incident_counts = [item[1] for item in sorted_items]
+    
+    if not time_blocks:
+        return None
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if count > avg_incidents else '#5B7C99' for count in incident_counts]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(time_blocks))
+    bars = ax.barh(y_pos, incident_counts, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add average reference line
+    ax.axvline(avg_incidents, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, count) in enumerate(zip(bars, incident_counts)):
+        ax.text(count + (max(incident_counts) * 0.02), i, f'{count}', 
+                va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(time_blocks, fontsize=10)
+    ax.set_xlabel('Number of Incidents', fontsize=11, fontweight='bold')
+    ax.set_title('Incident Distribution by Time Block', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(incident_counts) * 1.15 if incident_counts else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Average', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='lower right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_campus_comparison_data(campus_results):
+    """
+    Calculate campus removal rates for district comparison chart.
+    
+    Parameters:
+    -----------
+    campus_results : dict
+        Dictionary where each key is a campus name and value contains stats
+    
+    Returns:
+    --------
+    tuple : (campus_data dict, district_avg float)
+    """
+    # Extract removal rates for each campus
+    campus_data = {}
+    total_removal_rate = 0
+    
+    for campus_name, results in campus_results.items():
+        if 'stats' in results and 'removal_pct' in results['stats']:
+            campus_data[campus_name] = results['stats']['removal_pct']
+            total_removal_rate += results['stats']['removal_pct']
+    
+    # Calculate district average
+    district_avg = round(total_removal_rate / len(campus_data), 1) if campus_data else 0
+    
+    return campus_data, district_avg
+
+
+def generate_campus_comparison_chart_pdf(campus_data, district_avg):
+    """
+    Generate campus comparison chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not campus_data:
+        return None
+    
+    # Sort campuses by removal rate (highest to lowest)
+    sorted_items = sorted(campus_data.items(), key=lambda x: x[1], reverse=True)
+    campus_names = [item[0] for item in sorted_items]
+    removal_rates = [item[1] for item in sorted_items]
+    
+    if not campus_names:
+        return None
+    
+    # Determine colors based on variance from district average
+    colors = ['#FF8C42' if rate > district_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure with dynamic height
+    fig_height = max(5, len(campus_names) * 0.4)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(campus_names))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add district average reference line
+    ax.axvline(district_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(campus_names, fontsize=9)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Campus Removal Rate Comparison', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above District Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='lower right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+def fig_to_reportlab_image(fig, width=6*inch):
+    """Convert matplotlib figure to reportlab Image"""
+    if fig is None:
+        return None
+    
+    img_buffer = BytesIO()
+    fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+    img_buffer.seek(0)
+    plt.close(fig)
+    
+    # Create image with both width and height constraints
+    img = Image(img_buffer, width=width, height=3.5*inch)
+    return img
+def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name, df, posture):
     """Generate professional PDF for School Brief"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -318,7 +605,21 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name)
         spaceAfter=6,
         leading=14
     )
+    # Generate charts
+    from discipline_analyzer import (
+        calculate_grade_removal_rates,
+        generate_grade_level_removal_chart_pdf,
+        calculate_time_block_distribution,
+        generate_time_block_distribution_chart_pdf
+    )
     
+    grade_data, campus_avg = calculate_grade_removal_rates(df)
+    grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+    grade_chart_img = fig_to_reportlab_image(grade_chart_fig, width=6*inch)
+    
+    time_data, time_avg = calculate_time_block_distribution(df)
+    time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+    time_chart_img = fig_to_reportlab_image(time_chart_fig, width=6*inch)
     # Posture icons
     posture_icons = {
         'STABLE': '✓',
@@ -356,6 +657,20 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name)
     ]))
     story.append(posture_table)
     story.append(Spacer(1, 0.3*inch))
+    
+    # Add grade-level chart
+    if grade_chart_img:
+        story.append(Paragraph("Grade-Level Removal Rates", heading_style))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(grade_chart_img)
+        story.append(Spacer(1, 0.2*inch))
+    
+    # Add time block chart
+    if time_chart_img:
+        story.append(Paragraph("Incident Distribution by Time Block", heading_style))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(time_chart_img)
+        story.append(Spacer(1, 0.3*inch))
     
     # Parse report sections
     lines = school_brief_text.split('\n')
@@ -1047,7 +1362,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             pdf_buffer = generate_school_brief_pdf(
                                 result['brief'],
                                 uploaded_filename=campus_name,
-                                period_name=period_name,)
+                                period_name=period_name,
+                                df=result['df'],
+                                posture=result['posture'])
                             clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
                             clean_campus = campus_name.replace(' ', '_')
                             filename = f"school_brief_{clean_campus}_{clean_period}.pdf"
@@ -1180,7 +1497,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     
                     # Download PDF button with period-based filename
                     st.markdown("<br>", unsafe_allow_html=True)
-                    pdf_buffer = generate_school_brief_pdf(school_brief, uploaded_files[0].name, period_name)
+                    pdf_buffer = generate_school_brief_pdf(school_brief, uploaded_files[0].name, period_name, df, posture)
                     
                     # Clean period name for filename
                     clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
