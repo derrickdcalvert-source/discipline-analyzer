@@ -624,7 +624,8 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     time_chart_img = fig_to_reportlab_image(time_chart_fig, width=6*inch)
     # Equity chart
     equity_data = analyze_equity_patterns(df)
-    equity_chart_fig = generate_equity_chart_pdf(equity_data, stats['removal_pct'])
+    pdf_stats = calculate_school_brief_stats(df)
+    equity_chart_fig = generate_equity_chart_pdf(equity_data, pdf_stats['removal_pct'])
     equity_chart_img = fig_to_reportlab_image(equity_chart_fig, width=6*inch) if equity_chart_fig else None
     # Posture icons
     posture_icons = {
@@ -1373,7 +1374,25 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             # Display formatted report (same as before)
                             lines = result['brief'].split('\n')
                             section_content = []
+                        # Generate charts for this campus
+                            from discipline_analyzer import (
+                                calculate_grade_removal_rates,
+                                generate_grade_level_removal_chart_pdf,
+                                calculate_time_block_distribution,
+                                generate_time_block_distribution_chart_pdf,
+                                analyze_equity_patterns,
+                                generate_equity_chart_pdf
+                            )
                             
+                            campus_df = result['df']
+                            grade_data, campus_avg = calculate_grade_removal_rates(campus_df)
+                            grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+                            
+                            time_data, time_avg = calculate_time_block_distribution(campus_df)
+                            time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+                            
+                            equity_data = analyze_equity_patterns(campus_df)
+                            equity_chart_fig = generate_equity_chart_pdf(equity_data, result['stats']['removal_pct'])    
                             for line in lines:
                                 if '═' in line or '─' in line:
                                     continue
@@ -1382,6 +1401,18 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                                         section_content = []
                                     st.markdown(f"#### {line.strip()}")
+                                # Insert charts after their section headers
+                                    if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                        st.pyplot(grade_chart_fig)
+                                        plt.close(grade_chart_fig)
+                                    
+                                    if 'TIME BLOCK' in line and time_chart_fig:
+                                        st.pyplot(time_chart_fig)
+                                        plt.close(time_chart_fig)
+                                    
+                                    if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                        st.pyplot(equity_chart_fig)
+                                        plt.close(equity_chart_fig)    
                                 elif line.strip():
                                     if 'Decision Posture:' in line or 'Overall System State:' in line:
                                         parts = line.split(':')
@@ -1431,6 +1462,19 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                             st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                                             section_content = []
                                         st.markdown(f"#### {line.strip()}")
+                                    
+                                    # Insert charts after their section headers
+                                    if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                        st.pyplot(grade_chart_fig)
+                                        plt.close(grade_chart_fig)
+                                    
+                                    if 'TIME BLOCK' in line and time_chart_fig:
+                                        st.pyplot(time_chart_fig)
+                                        plt.close(time_chart_fig)
+                                    
+                                    if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                        st.pyplot(equity_chart_fig)
+                                        plt.close(equity_chart_fig)
                                     elif line.strip():
                                         if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
                                             st.markdown(f"**{line}**")
@@ -1499,7 +1543,24 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 with tab1:
                     # Parse and display School Brief beautifully
                     st.markdown("### 📄 School Brief (Principal-Facing)")
+                    # Generate charts for web display
+                    from discipline_analyzer import (
+                        calculate_grade_removal_rates,
+                        generate_grade_level_removal_chart_pdf,
+                        calculate_time_block_distribution,
+                        generate_time_block_distribution_chart_pdf,
+                        analyze_equity_patterns,
+                        generate_equity_chart_pdf
+                    )
                     
+                    grade_data, campus_avg = calculate_grade_removal_rates(df)
+                    grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+                    
+                    time_data, time_avg = calculate_time_block_distribution(df)
+                    time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+                    
+                    equity_data = analyze_equity_patterns(df)
+                    equity_chart_fig = generate_equity_chart_pdf(equity_data, school_stats['removal_pct'])
                     # Display formatted report
                     lines = school_brief.split('\n')
                     in_section = False
@@ -1517,6 +1578,19 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                 section_content = []
                             st.markdown(f"#### {line.strip()}")
                             in_section = True
+                            
+                            # Insert charts after their section headers
+                            if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                st.pyplot(grade_chart_fig)
+                                plt.close(grade_chart_fig)
+                            
+                            if 'TIME BLOCK' in line and time_chart_fig:
+                                st.pyplot(time_chart_fig)
+                                plt.close(time_chart_fig)
+                            
+                            if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                st.pyplot(equity_chart_fig)
+                                plt.close(equity_chart_fig)
                         # Content lines
                         elif line.strip():
                             # Highlight key metrics
