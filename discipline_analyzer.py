@@ -1004,7 +1004,7 @@ def generate_grade_level_removal_chart_pdf(grade_data, campus_avg):
     orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     ax.legend(handles=[orange_patch, blue_patch], 
-              loc='lower right', frameon=False, fontsize=9)
+              loc='upper right', frameon=False, fontsize=9)
     
     plt.tight_layout()
     
@@ -1093,7 +1093,7 @@ def generate_time_block_distribution_chart_pdf(time_block_data, avg_incidents):
     orange_patch = mpatches.Patch(color='#FF8C42', label='Above Average', alpha=0.85)
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     ax.legend(handles=[orange_patch, blue_patch],
-              loc='lower right', frameon=False, fontsize=9)
+              loc='upper right', frameon=False, fontsize=9)
     
     plt.tight_layout()
     
@@ -1180,7 +1180,7 @@ def generate_campus_comparison_chart_pdf(campus_data, district_avg):
     orange_patch = mpatches.Patch(color='#FF8C42', label='Above District Avg', alpha=0.85)
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     ax.legend(handles=[orange_patch, blue_patch],
-              loc='lower right', frameon=False, fontsize=9)
+              loc='upper right', frameon=False, fontsize=9)
     
     plt.tight_layout()
     

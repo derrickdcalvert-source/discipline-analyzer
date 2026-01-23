@@ -370,7 +370,7 @@ def generate_grade_level_removal_chart_pdf(grade_data, campus_avg):
     orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     ax.legend(handles=[orange_patch, blue_patch], 
-              loc='lower right', frameon=False, fontsize=9)
+              loc='upper right', frameon=False, fontsize=9)
     
     plt.tight_layout()
     
@@ -658,20 +658,6 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     story.append(posture_table)
     story.append(Spacer(1, 0.3*inch))
     
-    # Add grade-level chart
-    if grade_chart_img:
-        story.append(Paragraph("Grade-Level Removal Rates", heading_style))
-        story.append(Spacer(1, 0.1*inch))
-        story.append(grade_chart_img)
-        story.append(Spacer(1, 0.2*inch))
-    
-    # Add time block chart
-    if time_chart_img:
-        story.append(Paragraph("Incident Distribution by Time Block", heading_style))
-        story.append(Spacer(1, 0.1*inch))
-        story.append(time_chart_img)
-        story.append(Spacer(1, 0.3*inch))
-    
     # Parse report sections
     lines = school_brief_text.split('\n')
     current_section = []
@@ -698,6 +684,20 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
                 story.append(Paragraph(f"<b>{line}</b>", body_style))
             else:
                 current_section.append(line)
+    
+    # Add grade-level chart
+    if grade_chart_img:
+        story.append(Paragraph("Grade-Level Removal Rates", heading_style))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(grade_chart_img)
+        story.append(Spacer(1, 0.2*inch))
+    
+    # Add time block chart
+    if time_chart_img:
+        story.append(Paragraph("Incident Distribution by Time Block", heading_style))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(time_chart_img)
+        story.append(Spacer(1, 0.3*inch))
     
     # Flush final section
     if current_section:
