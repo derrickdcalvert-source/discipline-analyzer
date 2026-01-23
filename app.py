@@ -612,7 +612,8 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
         calculate_time_block_distribution,
         generate_time_block_distribution_chart_pdf,
         analyze_equity_patterns,
-        generate_equity_chart_pdf
+        generate_equity_chart_pdf,
+        generate_instructional_impact_chart_pdf
     )
     
     grade_data, campus_avg = calculate_grade_removal_rates(df)
@@ -627,6 +628,9 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     pdf_stats = calculate_school_brief_stats(df)
     equity_chart_fig = generate_equity_chart_pdf(equity_data, pdf_stats['removal_pct'])
     equity_chart_img = fig_to_reportlab_image(equity_chart_fig, width=6*inch) if equity_chart_fig else None
+    # Instructional impact chart
+    impact_chart_fig = generate_instructional_impact_chart_pdf(df)
+    impact_chart_img = fig_to_reportlab_image(impact_chart_fig, width=6*inch) if impact_chart_fig else None
     # Posture icons
     posture_icons = {
         'STABLE': '✓',
@@ -699,7 +703,12 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
             if 'EQUITY' in line and 'PATTERN' in line and equity_chart_img:
                 story.append(Spacer(1, 0.1*inch))
                 story.append(equity_chart_img)
-                story.append(Spacer(1, 0.15*inch))    
+                story.append(Spacer(1, 0.15*inch))
+            # Insert Instructional Impact chart after its section header
+            if 'INSTRUCTIONAL IMPACT' in line and impact_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(impact_chart_img)
+                story.append(Spacer(1, 0.15*inch))        
         else:
             # Regular content
             if 'Decision Posture:' in line or 'Overall System State:' in line:

@@ -1185,6 +1185,96 @@ def generate_campus_comparison_chart_pdf(campus_data, district_avg):
     plt.tight_layout()
     
     return fig
+def generate_instructional_impact_chart_pdf(df, grade_band_minutes=None):
+    """
+    Generate instructional impact chart showing days lost by grade level.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if 'Days_Removed' not in df.columns or 'Grade' not in df.columns:
+        return None
+    
+    # Default instructional minutes by grade band
+    if grade_band_minutes is None:
+        grade_band_minutes = {
+            'elementary': 360,  # K-5
+            'middle': 375,      # 6-8
+            'high': 390         # 9-12
+        }
+    
+    # Calculate days lost by grade
+    grade_impact = df.groupby('Grade')['Days_Removed'].sum().reset_index()
+    grade_impact.columns = ['Grade', 'Days_Lost']
+    
+    if grade_impact.empty or grade_impact['Days_Lost'].sum() == 0:
+        return None
+    
+    # Sort grades properly (handle K, PK, numeric)
+    def grade_sort_key(g):
+        g_str = str(g).strip().upper()
+        if g_str in ['PK', 'PRE-K']:
+            return -1
+        elif g_str == 'K':
+            return 0
+        else:
+            try:
+                return int(float(g_str))
+            except:
+                return 999
+    
+    grade_impact['sort_key'] = grade_impact['Grade'].apply(grade_sort_key)
+    grade_impact = grade_impact.sort_values('sort_key')
+    
+    grades = [str(g).replace('.0', '') for g in grade_impact['Grade'].tolist()]
+    days_lost = grade_impact['Days_Lost'].tolist()
+    
+    if not grades:
+        return None
+    
+    # Calculate average for variance coloring
+    avg_days = sum(days_lost) / len(days_lost)
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if d > avg_days else '#5B7C99' for d in days_lost]
+    
+    # Create figure
+    fig_height = max(4, len(grades) * 0.5)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(grades))
+    bars = ax.barh(y_pos, days_lost, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add 10-day chronic absence threshold line
+    ax.axvline(10, color='#DC2626', linestyle='--', linewidth=2, zorder=3, label='Chronic Absence Threshold (10 days)')
+    
+    # Add value labels on bars
+    for i, (bar, days) in enumerate(zip(bars, days_lost)):
+        ax.text(days + 0.5, i, f'{days:.0f}', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels([f'Grade {g}' for g in grades], fontsize=10)
+    ax.set_xlabel('Instructional Days Lost', fontsize=11, fontweight='bold')
+    ax.set_title('Instructional Days Lost by Grade', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(days_lost) + 5 if days_lost else 15)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Avg Loss', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    threshold_line = plt.Line2D([0], [0], color='#DC2626', linestyle='--', linewidth=2, label='Chronic Threshold (10 days)')
+    ax.legend(handles=[orange_patch, blue_patch, threshold_line],
+              loc='lower right', frameon=False, fontsize=8)
+    
+    plt.tight_layout()
+    
+    return fig
 def generate_equity_chart_pdf(equity_data, campus_avg):
     """
     Generate equity pattern chart as matplotlib Figure for PDF embedding.
