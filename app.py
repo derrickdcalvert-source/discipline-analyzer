@@ -22,6 +22,7 @@ from discipline_analyzer import (
     calculate_district_tea_stats,
     calculate_instructional_impact,
     determine_posture_texas,
+    generate_instructional_impact_chart_pdf,
     generate_school_brief,
     generate_district_tea_report,
     generate_district_consolidated_report,
@@ -831,7 +832,7 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
     doc.build(story)
     buffer.seek(0)
     return buffer
-def generate_district_consolidated_report_pdf(district_report_text, period_name, campus_chart_data=None, district_avg=None):
+def generate_district_consolidated_report_pdf(district_report_text, period_name, campus_chart_data=None, district_avg=None, campus_impact_data=None):
     """Generate professional PDF for District Consolidated Report"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -887,6 +888,24 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name,
         except Exception as e:
             pass
     
+    # Generate district instructional impact chart
+    district_impact_chart_img = None
+    if campus_impact_data:
+        try:
+            from discipline_analyzer import generate_district_instructional_impact_chart_pdf
+            impact_fig = generate_district_instructional_impact_chart_pdf(campus_impact_data)
+            if impact_fig:
+                impact_buffer = BytesIO()
+                impact_fig.savefig(impact_buffer, format='png', dpi=150, bbox_inches='tight',
+                                   facecolor='white', edgecolor='none')
+                impact_buffer.seek(0)
+                district_impact_chart_img = Image(impact_buffer, width=5.5*inch, height=3*inch)
+                plt.close(impact_fig)
+        except Exception as e:
+            pass
+    
+    # Header
+    
     # Header
     story.append(Paragraph("📊 District Consolidated Report", title_style))
     story.append(Paragraph(f"Multi-Campus Analysis — {period_name}", subtitle_style))
@@ -911,6 +930,11 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name,
                 story.append(campus_chart_img)
                 story.append(Spacer(1, 0.15*inch))
                 campus_chart_inserted = True
+            # Insert instructional impact chart after INSTRUCTIONAL IMPACT section
+            if 'INSTRUCTIONAL IMPACT' in line and district_impact_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(district_impact_chart_img)
+                story.append(Spacer(1, 0.15*inch))    
         # Bold items
         elif line.startswith('**') and line.endswith('**'):
             clean_line = line.replace('**', '')
@@ -1331,11 +1355,28 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     }
                     district_avg = sum(campus_chart_data.values()) / len(campus_chart_data)
                     
+                    # Build campus impact data for chart
+                    # Build campus impact data for chart (extract from stats)
+                    campus_impact_data = {}
+                    for campus, result in campus_results.items():
+                        # Try to get days from instructional_impact or calculate from stats
+                        if 'instructional_impact' in result and result['instructional_impact']:
+                            days = result['instructional_impact'].get('total_days', 0)
+                        else:
+                            # Calculate from dataframe if available
+                            if 'df' in result and 'Days_Removed' in result['df'].columns:
+                                days = result['df']['Days_Removed'].sum()
+                            else:
+                                days = 0
+                        if days > 0:
+                            campus_impact_data[campus] = days
+                    
                     district_pdf = generate_district_consolidated_report_pdf(
                         district_report_text,
                         period_name,
                         campus_chart_data,
-                        district_avg
+                        district_avg,
+                        campus_impact_data
                     )
                     st.download_button(
                         label="⬇️ Download District Report (PDF)",
@@ -1390,7 +1431,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                 calculate_time_block_distribution,
                                 generate_time_block_distribution_chart_pdf,
                                 analyze_equity_patterns,
-                                generate_equity_chart_pdf
+                                generate_equity_chart_pdf,
+                                generate_instructional_impact_chart_pdf
                             )
                             
                             campus_df = result['df']
@@ -1402,6 +1444,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             
                             equity_data = analyze_equity_patterns(campus_df)
                             equity_chart_fig = generate_equity_chart_pdf(equity_data, result['stats']['removal_pct'])    
+                            impact_chart_fig = generate_instructional_impact_chart_pdf(campus_df)
                             for line in lines:
                                 if '═' in line or '─' in line:
                                     continue
@@ -1421,7 +1464,10 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                     
                                     if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
                                         st.pyplot(equity_chart_fig)
-                                        plt.close(equity_chart_fig)    
+                                        plt.close(equity_chart_fig) 
+                                    if 'INSTRUCTIONAL IMPACT' in line and impact_chart_fig:
+                                        st.pyplot(impact_chart_fig)
+                                        plt.close(impact_chart_fig)       
                                 elif line.strip():
                                     if 'Decision Posture:' in line or 'Overall System State:' in line:
                                         parts = line.split(':')
@@ -1559,7 +1605,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         calculate_time_block_distribution,
                         generate_time_block_distribution_chart_pdf,
                         analyze_equity_patterns,
-                        generate_equity_chart_pdf
+                        generate_equity_chart_pdf,
+                        generate_instructional_impact_chart_pdf
                     )
                     
                     grade_data, campus_avg = calculate_grade_removal_rates(df)
@@ -1570,6 +1617,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     
                     equity_data = analyze_equity_patterns(df)
                     equity_chart_fig = generate_equity_chart_pdf(equity_data, school_stats['removal_pct'])
+                    impact_chart_fig = generate_instructional_impact_chart_pdf(df)
                     # Display formatted report
                     lines = school_brief.split('\n')
                     in_section = False
@@ -1600,6 +1648,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
                                 st.pyplot(equity_chart_fig)
                                 plt.close(equity_chart_fig)
+                            if 'INSTRUCTIONAL IMPACT' in line and impact_chart_fig:
+                                st.pyplot(impact_chart_fig)
+                                plt.close(impact_chart_fig)    
                         # Content lines
                         elif line.strip():
                             # Highlight key metrics

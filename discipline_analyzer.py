@@ -1194,8 +1194,7 @@ def generate_instructional_impact_chart_pdf(df, grade_band_minutes=None):
     matplotlib.figure.Figure : Chart figure ready for PDF embedding
     """
     if 'Days_Removed' not in df.columns or 'Grade' not in df.columns:
-        return None
-    
+        return None    
     # Default instructional minutes by grade band
     if grade_band_minutes is None:
         grade_band_minutes = {
@@ -1260,6 +1259,72 @@ def generate_instructional_impact_chart_pdf(df, grade_band_minutes=None):
     ax.set_xlabel('Instructional Days Lost', fontsize=11, fontweight='bold')
     ax.set_title('Instructional Days Lost by Grade', fontsize=12, fontweight='bold', pad=15)
     ax.set_xlim(0, max(days_lost) + 5 if days_lost else 15)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Avg Loss', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    threshold_line = plt.Line2D([0], [0], color='#DC2626', linestyle='--', linewidth=2, label='Chronic Threshold (10 days)')
+    ax.legend(handles=[orange_patch, blue_patch, threshold_line],
+              loc='lower right', frameon=False, fontsize=8)
+    
+    plt.tight_layout()
+    
+    return fig
+def generate_district_instructional_impact_chart_pdf(campus_impact_data):
+    """
+    Generate district-level instructional impact chart showing days lost by campus.
+    
+    Parameters:
+    -----------
+    campus_impact_data : dict
+        Dictionary of campus_name -> days_lost
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not campus_impact_data:
+        return None
+    
+    # Sort campuses by days lost (highest first)
+    sorted_items = sorted(campus_impact_data.items(), key=lambda x: x[1], reverse=True)
+    campus_names = [item[0] for item in sorted_items]
+    days_lost = [item[1] for item in sorted_items]
+    
+    if not campus_names or sum(days_lost) == 0:
+        return None
+    
+    # Calculate average for variance coloring
+    avg_days = sum(days_lost) / len(days_lost)
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if d > avg_days else '#5B7C99' for d in days_lost]
+    
+    # Create figure
+    fig_height = max(4, len(campus_names) * 0.6)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(campus_names))
+    bars = ax.barh(y_pos, days_lost, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add 10-day chronic absence threshold line
+    ax.axvline(10, color='#DC2626', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, days) in enumerate(zip(bars, days_lost)):
+        ax.text(days + 0.5, i, f'{days:.0f}', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(campus_names, fontsize=10)
+    ax.set_xlabel('Instructional Days Lost', fontsize=11, fontweight='bold')
+    ax.set_title('Instructional Days Lost by Campus', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(days_lost) + 10 if days_lost else 15)
     ax.grid(axis='x', alpha=0.3, linestyle=':')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
