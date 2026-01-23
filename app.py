@@ -676,6 +676,18 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
                 current_section = []
             story.append(Spacer(1, 0.15*inch))
             story.append(Paragraph(line, heading_style))
+            
+            # Insert Grade-Level chart after its section header
+            if 'GRADE' in line and 'PRESSURE' in line and grade_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(grade_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+            
+            # Insert Time Block chart after its section header
+            if 'TIME BLOCK' in line and time_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(time_chart_img)
+                story.append(Spacer(1, 0.15*inch))
         else:
             # Regular content
             if 'Decision Posture:' in line or 'Overall System State:' in line:
@@ -684,20 +696,6 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
                 story.append(Paragraph(f"<b>{line}</b>", body_style))
             else:
                 current_section.append(line)
-    
-    # Add grade-level chart
-    if grade_chart_img:
-        story.append(Paragraph("Grade-Level Removal Rates", heading_style))
-        story.append(Spacer(1, 0.1*inch))
-        story.append(grade_chart_img)
-        story.append(Spacer(1, 0.2*inch))
-    
-    # Add time block chart
-    if time_chart_img:
-        story.append(Paragraph("Incident Distribution by Time Block", heading_style))
-        story.append(Spacer(1, 0.1*inch))
-        story.append(time_chart_img)
-        story.append(Spacer(1, 0.3*inch))
     
     # Flush final section
     if current_section:
@@ -812,7 +810,7 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
     doc.build(story)
     buffer.seek(0)
     return buffer
-def generate_district_consolidated_report_pdf(district_report_text, period_name):
+def generate_district_consolidated_report_pdf(district_report_text, period_name, campus_chart_data=None, district_avg=None):
     """Generate professional PDF for District Consolidated Report"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -853,6 +851,20 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name)
         spaceAfter=6,
         leading=14
     )
+    # Generate campus comparison chart
+    campus_chart_img = None
+    if campus_chart_data and district_avg:
+        try:
+            chart_fig = generate_campus_comparison_chart_pdf(campus_chart_data, district_avg)
+            if chart_fig:
+                chart_buffer = BytesIO()
+                chart_fig.savefig(chart_buffer, format='png', dpi=150, bbox_inches='tight', 
+                                  facecolor='white', edgecolor='none')
+                chart_buffer.seek(0)
+                campus_chart_img = Image(chart_buffer, width=5.5*inch, height=3*inch)
+                plt.close(chart_fig)
+        except Exception as e:
+            pass
     
     # Header
     story.append(Paragraph("📊 District Consolidated Report", title_style))
@@ -861,7 +873,7 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name)
     
     # Parse report sections
     lines = district_report_text.split('\n')
-    
+    campus_chart_inserted = False
     for line in lines:
         line = line.strip()
         if not line or '═' in line or '─' in line:
@@ -871,6 +883,13 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name)
         if line.startswith('## '):
             story.append(Spacer(1, 0.15*inch))
             story.append(Paragraph(line.replace('## ', ''), heading_style))
+            
+            # Insert campus comparison chart after CAMPUS-LEVEL POSTURE section (once only)
+            if 'CAMPUS' in line and 'POSTURE' in line and campus_chart_img and not campus_chart_inserted:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(campus_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+                campus_chart_inserted = True
         # Bold items
         elif line.startswith('**') and line.endswith('**'):
             clean_line = line.replace('**', '')
@@ -1284,10 +1303,18 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         mime="text/plain",
                         key="district_tea_report_download"
                     )
-                    # PDF Download button
+                    # Build campus comparison data for chart
+                    campus_chart_data = {
+                        campus: result['stats']['removal_pct'] 
+                        for campus, result in campus_results.items()
+                    }
+                    district_avg = sum(campus_chart_data.values()) / len(campus_chart_data)
+                    
                     district_pdf = generate_district_consolidated_report_pdf(
                         district_report_text,
-                        period_name
+                        period_name,
+                        campus_chart_data,
+                        district_avg
                     )
                     st.download_button(
                         label="⬇️ Download District Report (PDF)",
