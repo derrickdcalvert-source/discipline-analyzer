@@ -1185,6 +1185,76 @@ def generate_campus_comparison_chart_pdf(campus_data, district_avg):
     plt.tight_layout()
     
     return fig
+def generate_equity_chart_pdf(equity_data, campus_avg):
+    """
+    Generate equity pattern chart as matplotlib Figure for PDF embedding.
+    Shows removal rates by race and gender compared to campus average.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not equity_data or equity_data.get('suppressed', False):
+        return None
+    
+    # Collect all subgroups
+    labels = []
+    rates = []
+    
+    # Add race data
+    if equity_data.get('by_race'):
+        for race, data in equity_data['by_race'].items():
+            labels.append(f"{race}")
+            rates.append(data['removal_rate'])
+    
+    # Add gender data
+    if equity_data.get('by_gender'):
+        for gender, data in equity_data['by_gender'].items():
+            label = "Male" if gender == "M" else "Female" if gender == "F" else gender
+            labels.append(f"{label}")
+            rates.append(data['removal_rate'])
+    
+    if not labels:
+        return None
+    
+    # Determine colors based on variance from campus average
+    colors = ['#FF8C42' if rate > campus_avg else '#5B7C99' for rate in rates]
+    
+    # Create figure
+    fig_height = max(4, len(labels) * 0.5)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(labels))
+    bars = ax.barh(y_pos, rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add campus average reference line
+    ax.axvline(campus_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Removal Rates by Subgroup', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(rates) + 15 if rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
 def generate_posture_gauge(removal_rate, oss_rate, expulsion_count, posture):
     """
     Generates matplotlib figure showing discipline posture gauge.

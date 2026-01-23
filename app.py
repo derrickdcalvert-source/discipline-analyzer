@@ -610,7 +610,9 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
         calculate_grade_removal_rates,
         generate_grade_level_removal_chart_pdf,
         calculate_time_block_distribution,
-        generate_time_block_distribution_chart_pdf
+        generate_time_block_distribution_chart_pdf,
+        analyze_equity_patterns,
+        generate_equity_chart_pdf
     )
     
     grade_data, campus_avg = calculate_grade_removal_rates(df)
@@ -620,6 +622,10 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     time_data, time_avg = calculate_time_block_distribution(df)
     time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
     time_chart_img = fig_to_reportlab_image(time_chart_fig, width=6*inch)
+    # Equity chart
+    equity_data = analyze_equity_patterns(df)
+    equity_chart_fig = generate_equity_chart_pdf(equity_data, stats['removal_pct'])
+    equity_chart_img = fig_to_reportlab_image(equity_chart_fig, width=6*inch) if equity_chart_fig else None
     # Posture icons
     posture_icons = {
         'STABLE': '✓',
@@ -688,6 +694,11 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
                 story.append(Spacer(1, 0.1*inch))
                 story.append(time_chart_img)
                 story.append(Spacer(1, 0.15*inch))
+            # Insert Equity chart after its section header
+            if 'EQUITY' in line and 'PATTERN' in line and equity_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(equity_chart_img)
+                story.append(Spacer(1, 0.15*inch))    
         else:
             # Regular content
             if 'Decision Posture:' in line or 'Overall System State:' in line:
