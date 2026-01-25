@@ -17,6 +17,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
+    check_for_pii_columns,
     apply_tea_mapping,
     calculate_school_brief_stats,
     calculate_district_tea_stats,
@@ -608,6 +609,7 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     )
     # Generate charts
     from discipline_analyzer import (
+    check_for_pii_columns,
         calculate_grade_removal_rates,
         generate_grade_level_removal_chart_pdf,
         calculate_time_block_distribution,
@@ -1060,6 +1062,12 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 else:
                     df = pd.read_excel(uploaded_file)
                 
+                
+                # FERPA: Check for PII columns
+                pii_columns, df = check_for_pii_columns(df)
+                if pii_columns:
+                    st.warning(f"⚠️ **{uploaded_file.name}**: PII columns detected and excluded for privacy protection: {', '.join(pii_columns)}")
+
                 # Validate required columns
                 required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
                 missing = [col for col in required if col not in df.columns]
@@ -1426,6 +1434,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             section_content = []
                         # Generate charts for this campus
                             from discipline_analyzer import (
+    check_for_pii_columns,
                                 calculate_grade_removal_rates,
                                 generate_grade_level_removal_chart_pdf,
                                 calculate_time_block_distribution,
@@ -1600,6 +1609,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     st.markdown("### 📄 School Brief (Principal-Facing)")
                     # Generate charts for web display
                     from discipline_analyzer import (
+    check_for_pii_columns,
                         calculate_grade_removal_rates,
                         generate_grade_level_removal_chart_pdf,
                         calculate_time_block_distribution,
