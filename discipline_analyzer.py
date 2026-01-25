@@ -9,10 +9,14 @@ Changes in this version:
 - Chronic absenteeism context added
 """
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.figure import Figure
+import pandas
 import pandas as pd
+import numpy as np
 import hashlib
 from datetime import datetime
-
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -65,6 +69,39 @@ def check_for_pii_columns(df):
     
     return flagged_columns, clean_df
 
+
+# ============================================================================
+# FERPA COMPLIANCE - PII DETECTION
+# ============================================================================
+
+def check_for_pii_columns(df):
+    """
+    Scan dataframe columns for potential PII (Personally Identifiable Information).
+    Returns tuple: (flagged_columns, clean_df)
+    - flagged_columns: list of column names that may contain PII
+    - clean_df: dataframe with PII columns removed
+    """
+    pii_patterns = [
+        'name', 'first', 'last', 'fname', 'lname', 
+        'student_name', 'full_name', 'studentname',
+        'ssn', 'social', 'address', 'street',
+        'phone', 'email', 'parent', 'guardian',
+        'dob', 'birth', 'birthdate'
+    ]
+    
+    flagged_columns = []
+    for col in df.columns:
+        col_lower = col.lower().replace('_', '').replace(' ', '').replace('-', '')
+        for pattern in pii_patterns:
+            if pattern in col_lower:
+                flagged_columns.append(col)
+                break
+    
+    # Create clean dataframe with PII columns removed
+    safe_columns = [c for c in df.columns if c not in flagged_columns]
+    clean_df = df[safe_columns].copy()
+    
+    return flagged_columns, clean_df
 
 # ============================================================================
 # TEA ACTION MAPPING
@@ -246,7 +283,7 @@ def analyze_instructional_impact(df, state_mode="TEXAS_TEA"):
     
     # Calculate by grade
     grade_distribution = {}
-    for grade in sorted(removal_df['Grade'].unique()):
+    for grade in sorted(removal_df['Grade'].unique(), key=lambda x: (str(x).isdigit() is False, str(x))):
         grade_data = removal_df[removal_df['Grade'] == grade]
         grade_days = grade_data['Days_Removed'].sum()
         grade_minutes = grade_days * MINUTES_PER_DAY
@@ -446,7 +483,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += "```\n"
         
         # Sort by grade and display in table format
-        for grade in sorted(impact['grade_distribution'].keys()):
+        for grade in sorted(impact['grade_distribution'].keys(), key=str):
             data = impact['grade_distribution'][grade]
             days = data['Days_Removed']
             minutes = data['Minutes_Lost']
@@ -772,3 +809,807 @@ def generate_district_tea_report(df, campus_name="School Campus"):
     report += "=" * 80 + "\n"
     
     return report
+# =============================================================================
+# DISTRICT CONSOLIDATED REPORT GENERATION
+# =============================================================================
+
+def generate_district_consolidated_report(campus_results, district_name="District (All Campuses)"):
+    """
+    Generate consolidated district report with same 14-section structure as School Brief
+    
+    Args:
+        campus_results: Dictionary of {campus_name: {df, stats, posture, system_state, impact, brief}}
+        district_name: Name for the district
+        
+    Returns:
+        String containing formatted district report
+    """
+    from datetime import datetime
+    import hashlib
+    
+    # Extract dataframes correctly
+    all_dfs = []
+    for campus_name, result in campus_results.items():
+        if isinstance(result, dict) and 'df' in result:
+            all_dfs.append(result['df'])
+    # Combine dataframes
+    if len(all_dfs) == 0:
+        raise ValueError("No dataframes found in campus_results")
+    elif len(all_dfs) == 1:
+        district_df = all_dfs[0]
+    else:
+        district_df = pd.concat(all_dfs, ignore_index=True)
+
+    # Determine district posture
+    district_stats = calculate_school_brief_stats(district_df)
+
+    district_posture, district_system_state = determine_posture_texas(district_stats)
+
+    # Calculate district impact
+    district_impact = calculate_instructional_impact(district_df)
+    
+    # Build header
+    date_range_start = district_df['Date'].min()
+    date_range_end = district_df['Date'].max()
+    data_hash = hashlib.md5(str(len(district_df)).encode()).hexdigest()[:16]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    report = f"""{'='*80}
+ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
+{'='*80}
+
+**District:** {district_name}
+**Campuses:** {len(campus_results)}
+**Date Range:** {date_range_start} to {date_range_end}
+**State Mode:** TEXAS_TEA
+**Data Hash:** {data_hash}...
+**Generated:** {timestamp}
+
+{'─'*80}
+
+## DISCIPLINE SYSTEM STATUS — AT A GLANCE
+
+**Overall System State:** {district_system_state}
+**Decision Posture:** {district_posture}
+**Leadership Interpretation:** District operates at {district_stats['removal_pct']:.1f}% removal rate across {len(campus_results)} campuses. {len([c for c in campus_results.values() if c['posture'] in ['ESCALATE', 'INTERVENE']])} campus(es) require immediate attention.
+
+{'─'*80}
+
+## RESPONSE / REMOVAL SNAPSHOT
+
+**Total Incidents:** {district_stats['total_incidents']}
+
+**Response Distribution:**
+- LOCAL_ONLY: {district_stats['LOCAL_ONLY']} ({district_stats['LOCAL_ONLY_pct']:.1f}%)
+- ISS: {district_stats['ISS']} ({district_stats['ISS_pct']:.1f}%)
+- OSS: {district_stats['OSS']} ({district_stats['OSS_pct']:.1f}%)
+- DAEP: {district_stats['DAEP']} ({district_stats['DAEP_pct']:.1f}%)
+- JJAEP: {district_stats['JJAEP']} ({district_stats['JJAEP_pct']:.1f}%)
+- EXPULSION: {district_stats['Expulsion']} ({district_stats['Expulsion_pct']:.1f}%)
+
+**Total Removals:** {district_stats['total_removals']} ({district_stats['removal_pct']:.1f}%)
+
+{'─'*80}
+
+## CAMPUS-LEVEL POSTURE ANALYSIS
+
+## CAMPUS-LEVEL POSTURE ANALYSIS
+
+**Posture Distribution:**
+"""
+    
+    # Count campuses by posture
+    posture_counts = {}
+    for result in campus_results.values():
+        p = result['posture']
+        posture_counts[p] = posture_counts.get(p, 0) + 1
+    
+    for posture in ['ESCALATE', 'INTERVENE', 'CALIBRATE', 'STABLE']:
+        count = posture_counts.get(posture, 0)
+        report += f"- {posture}: {count} campus(es)\n"
+    
+    report += f"\n**High-Priority Campuses:**\n"
+    watchlist = [(name, r) for name, r in campus_results.items() if r['posture'] in ['ESCALATE', 'INTERVENE']]
+    if watchlist:
+        for campus_name, result in sorted(watchlist, key=lambda x: x[1]['stats']['removal_pct'], reverse=True):
+            report += f"- {campus_name}: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate\n"
+    else:
+        report += "- None requiring immediate attention\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+    # Top incident types (district-wide)
+    incident_counts = district_df['Incident_Type'].value_counts().head(3)
+    report += "## TOP INCIDENT TYPES (DISTRICT-WIDE)\n\n**Top 3 by Volume:**\n"
+    for incident_type, count in incident_counts.items():
+        incidents_of_type = district_df[district_df['Incident_Type'] == incident_type]
+        removals = incidents_of_type[incidents_of_type['Response'].isin(['ISS', 'OSS', 'DAEP', 'JJAEP', 'Expulsion'])].shape[0]
+        removal_rate = (removals / count * 100) if count > 0 else 0
+        report += f"- {incident_type}: {count} incidents, {removal_rate:.1f}% removal rate\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+# Instructional Impact
+    report += "## INSTRUCTIONAL IMPACT (DISTRICT-WIDE)\n\n"
+    
+    # Calculate total from all campuses
+    total_minutes = sum(r['impact'].get('total_minutes', 0) for r in campus_results.values() if r.get('impact'))
+    total_days = sum(r['impact'].get('total_days', 0) for r in campus_results.values() if r.get('impact'))
+    
+    if total_days > 0:
+        report += f"**TOTAL:** {total_minutes:,.0f} minutes ({total_days:.1f} days)\n\n"
+        report += "**Impact by Campus:**\n"
+        for campus_name, result in sorted(campus_results.items(), key=lambda x: x[1]['impact'].get('total_days', 0), reverse=True):
+            days = result['impact'].get('total_days', 0)
+            if days > 0:
+                report += f"- {campus_name}: {days:.1f} days\n"
+        
+        report += "\n**STAAR & Accountability Context:**\n"
+        report += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n"
+    else:
+        report += "*Instructional impact data not available*\n"
+    
+    report += f"\n{'─'*80}\n\n"
+    
+    # Bottom line
+    report += "## BOTTOM LINE FOR DISTRICT LEADERSHIP\n\n"
+    escalate_count = len([c for c in campus_results.values() if c['posture'] == 'ESCALATE'])
+    intervene_count = len([c for c in campus_results.values() if c['posture'] == 'INTERVENE'])
+    
+    if escalate_count > 0:
+        report += f"District faces crisis-level pressure with {escalate_count} campus(es) in ESCALATE posture. "
+    if intervene_count > 0:
+        report += f"{intervene_count} additional campus(es) require intervention. "
+    
+    report += f"District-wide removal rate at {district_stats['removal_pct']:.1f}%. Immediate executive attention required for high-priority campuses.\n"
+    
+    report += f"\n{'='*80}\n"
+    report += "END OF DISTRICT CONSOLIDATED REPORT\n"
+    report += f"{'='*80}\n"
+    
+    return report
+"""
+POSTURE GAUGE FUNCTION
+
+Required imports (add to top of discipline_analyzer.py):
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.figure import Figure
+"""
+# =============================================================================
+# CHART GENERATION FUNCTIONS FOR PDF INTEGRATION
+# =============================================================================
+# Add these functions to discipline_analyzer.py before the posture gauge function
+
+import numpy as np
+
+def calculate_grade_removal_rates(df):
+    """
+    Calculate removal rates by grade level for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Grade' and 'Is_Removal' columns
+    
+    Returns:
+    --------
+    tuple : (grade_data dict, campus_avg float)
+    """
+    # Count total incidents and removals by grade
+    grade_stats = df.groupby('Grade').agg({
+        'Is_Removal': ['count', 'sum']
+    }).reset_index()
+    
+    grade_stats.columns = ['Grade', 'total_incidents', 'removal_incidents']
+    
+    # Calculate removal rate per grade
+    grade_stats['removal_rate'] = (grade_stats['removal_incidents'] / grade_stats['total_incidents'] * 100).round(1)
+    
+    # Create dictionary for chart
+    grade_data = dict(zip(grade_stats['Grade'].astype(str), grade_stats['removal_rate']))
+    
+    # Calculate campus-wide average removal rate
+    total_incidents = len(df)
+    total_removals = df['Is_Removal'].sum()
+    campus_avg = round((total_removals / total_incidents * 100), 1) if total_incidents > 0 else 0
+    
+    return grade_data, campus_avg
+
+
+def generate_grade_level_removal_chart_pdf(grade_data, campus_avg):
+    """
+    Generate grade-level removal rate chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not grade_data:
+        return None
+    
+    # Sort grades in logical order (K, 1-12)
+    grade_order = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+    
+    # Filter to only grades present in data and maintain order
+    grades = [g for g in grade_order if g in grade_data]
+    removal_rates = [grade_data[g] for g in grades]
+    
+    if not grades:
+        return None
+    
+    # Determine colors based on variance from campus average
+    colors = ['#FF8C42' if rate > campus_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(grades))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add campus average reference line
+    ax.axvline(campus_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(grades, fontsize=10)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Grade-Level Removal Rates', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch], 
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_time_block_distribution(df):
+    """
+    Calculate incident distribution by time block for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Time_Block' column
+    
+    Returns:
+    --------
+    tuple : (time_block_data dict, avg_incidents float)
+    """
+    # Count incidents per time block
+    time_block_counts = df['Time_Block'].value_counts().to_dict()
+    
+    # Calculate average incidents per time block
+    avg_incidents = round(sum(time_block_counts.values()) / len(time_block_counts), 1) if time_block_counts else 0
+    
+    return time_block_counts, avg_incidents
+
+
+def generate_time_block_distribution_chart_pdf(time_block_data, avg_incidents):
+    """
+    Generate time block distribution chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not time_block_data:
+        return None
+    
+    # Define standard time block order
+    time_order = ['Early Morning', 'Morning', 'Mid-Morning', 'Lunch', 'Afternoon', 'Late Afternoon', 'After School']
+    
+    # Filter to only time blocks present in data and maintain order
+    time_blocks = [t for t in time_order if t in time_block_data]
+    incident_counts = [time_block_data[t] for t in time_blocks]
+    
+    # If no standard blocks found, use whatever blocks exist (sorted by count)
+    if not time_blocks:
+        sorted_items = sorted(time_block_data.items(), key=lambda x: x[1], reverse=True)
+        time_blocks = [item[0] for item in sorted_items]
+        incident_counts = [item[1] for item in sorted_items]
+    
+    if not time_blocks:
+        return None
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if count > avg_incidents else '#5B7C99' for count in incident_counts]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(time_blocks))
+    bars = ax.barh(y_pos, incident_counts, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add average reference line
+    ax.axvline(avg_incidents, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, count) in enumerate(zip(bars, incident_counts)):
+        ax.text(count + (max(incident_counts) * 0.02), i, f'{count}', 
+                va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(time_blocks, fontsize=10)
+    ax.set_xlabel('Number of Incidents', fontsize=11, fontweight='bold')
+    ax.set_title('Incident Distribution by Time Block', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(incident_counts) * 1.15 if incident_counts else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Average', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_campus_comparison_data(campus_results):
+    """
+    Calculate campus removal rates for district comparison chart.
+    
+    Parameters:
+    -----------
+    campus_results : dict
+        Dictionary where each key is a campus name and value contains stats
+    
+    Returns:
+    --------
+    tuple : (campus_data dict, district_avg float)
+    """
+    # Extract removal rates for each campus
+    campus_data = {}
+    total_removal_rate = 0
+    
+    for campus_name, results in campus_results.items():
+        if 'stats' in results and 'removal_pct' in results['stats']:
+            campus_data[campus_name] = results['stats']['removal_pct']
+            total_removal_rate += results['stats']['removal_pct']
+    
+    # Calculate district average
+    district_avg = round(total_removal_rate / len(campus_data), 1) if campus_data else 0
+    
+    return campus_data, district_avg
+
+
+def generate_campus_comparison_chart_pdf(campus_data, district_avg):
+    """
+    Generate campus comparison chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not campus_data:
+        return None
+    
+    # Sort campuses by removal rate (highest to lowest)
+    sorted_items = sorted(campus_data.items(), key=lambda x: x[1], reverse=True)
+    campus_names = [item[0] for item in sorted_items]
+    removal_rates = [item[1] for item in sorted_items]
+    
+    if not campus_names:
+        return None
+    
+    # Determine colors based on variance from district average
+    colors = ['#FF8C42' if rate > district_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure with dynamic height
+    fig_height = max(5, len(campus_names) * 0.4)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(campus_names))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add district average reference line
+    ax.axvline(district_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(campus_names, fontsize=9)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Campus Removal Rate Comparison', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above District Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+def generate_instructional_impact_chart_pdf(df, grade_band_minutes=None):
+    """
+    Generate instructional impact chart showing days lost by grade level.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if 'Days_Removed' not in df.columns or 'Grade' not in df.columns:
+        return None    
+    # Default instructional minutes by grade band
+    if grade_band_minutes is None:
+        grade_band_minutes = {
+            'elementary': 360,  # K-5
+            'middle': 375,      # 6-8
+            'high': 390         # 9-12
+        }
+    
+    # Calculate days lost by grade
+    grade_impact = df.groupby('Grade')['Days_Removed'].sum().reset_index()
+    grade_impact.columns = ['Grade', 'Days_Lost']
+    
+    if grade_impact.empty or grade_impact['Days_Lost'].sum() == 0:
+        return None
+    
+    # Sort grades properly (handle K, PK, numeric)
+    def grade_sort_key(g):
+        g_str = str(g).strip().upper()
+        if g_str in ['PK', 'PRE-K']:
+            return -1
+        elif g_str == 'K':
+            return 0
+        else:
+            try:
+                return int(float(g_str))
+            except:
+                return 999
+    
+    grade_impact['sort_key'] = grade_impact['Grade'].apply(grade_sort_key)
+    grade_impact = grade_impact.sort_values('sort_key')
+    
+    grades = [str(g).replace('.0', '') for g in grade_impact['Grade'].tolist()]
+    days_lost = grade_impact['Days_Lost'].tolist()
+    
+    if not grades:
+        return None
+    
+    # Calculate average for variance coloring
+    avg_days = sum(days_lost) / len(days_lost)
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if d > avg_days else '#5B7C99' for d in days_lost]
+    
+    # Create figure
+    fig_height = max(4, len(grades) * 0.5)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(grades))
+    bars = ax.barh(y_pos, days_lost, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add 10-day chronic absence threshold line
+    ax.axvline(10, color='#DC2626', linestyle='--', linewidth=2, zorder=3, label='Chronic Absence Threshold (10 days)')
+    
+    # Add value labels on bars
+    for i, (bar, days) in enumerate(zip(bars, days_lost)):
+        ax.text(days + 0.5, i, f'{days:.0f}', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels([f'Grade {g}' for g in grades], fontsize=10)
+    ax.set_xlabel('Instructional Days Lost', fontsize=11, fontweight='bold')
+    ax.set_title('Instructional Days Lost by Grade', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(days_lost) + 5 if days_lost else 15)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Avg Loss', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    threshold_line = plt.Line2D([0], [0], color='#DC2626', linestyle='--', linewidth=2, label='Chronic Threshold (10 days)')
+    ax.legend(handles=[orange_patch, blue_patch, threshold_line],
+              loc='lower right', frameon=False, fontsize=8)
+    
+    plt.tight_layout()
+    
+    return fig
+def generate_district_instructional_impact_chart_pdf(campus_impact_data):
+    """
+    Generate district-level instructional impact chart showing days lost by campus.
+    
+    Parameters:
+    -----------
+    campus_impact_data : dict
+        Dictionary of campus_name -> days_lost
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not campus_impact_data:
+        return None
+    
+    # Sort campuses by days lost (highest first)
+    sorted_items = sorted(campus_impact_data.items(), key=lambda x: x[1], reverse=True)
+    campus_names = [item[0] for item in sorted_items]
+    days_lost = [item[1] for item in sorted_items]
+    
+    if not campus_names or sum(days_lost) == 0:
+        return None
+    
+    # Calculate average for variance coloring
+    avg_days = sum(days_lost) / len(days_lost)
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if d > avg_days else '#5B7C99' for d in days_lost]
+    
+    # Create figure
+    fig_height = max(4, len(campus_names) * 0.6)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(campus_names))
+    bars = ax.barh(y_pos, days_lost, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add 10-day chronic absence threshold line
+    ax.axvline(10, color='#DC2626', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, days) in enumerate(zip(bars, days_lost)):
+        ax.text(days + 0.5, i, f'{days:.0f}', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(campus_names, fontsize=10)
+    ax.set_xlabel('Instructional Days Lost', fontsize=11, fontweight='bold')
+    ax.set_title('Instructional Days Lost by Campus', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(days_lost) + 10 if days_lost else 15)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Avg Loss', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    threshold_line = plt.Line2D([0], [0], color='#DC2626', linestyle='--', linewidth=2, label='Chronic Threshold (10 days)')
+    ax.legend(handles=[orange_patch, blue_patch, threshold_line],
+              loc='lower right', frameon=False, fontsize=8)
+    
+    plt.tight_layout()
+    
+    return fig
+def generate_equity_chart_pdf(equity_data, campus_avg):
+    """
+    Generate equity pattern chart as matplotlib Figure for PDF embedding.
+    Shows removal rates by race and gender compared to campus average.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not equity_data or equity_data.get('suppressed', False):
+        return None
+    
+    # Collect all subgroups
+    labels = []
+    rates = []
+    
+    # Add race data
+    if equity_data.get('by_race'):
+        for race, data in equity_data['by_race'].items():
+            labels.append(f"{race}")
+            rates.append(data['removal_rate'])
+    
+    # Add gender data
+    if equity_data.get('by_gender'):
+        for gender, data in equity_data['by_gender'].items():
+            label = "Male" if gender == "M" else "Female" if gender == "F" else gender
+            labels.append(f"{label}")
+            rates.append(data['removal_rate'])
+    
+    if not labels:
+        return None
+    
+    # Determine colors based on variance from campus average
+    colors = ['#FF8C42' if rate > campus_avg else '#5B7C99' for rate in rates]
+    
+    # Create figure
+    fig_height = max(4, len(labels) * 0.5)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(labels))
+    bars = ax.barh(y_pos, rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add campus average reference line
+    ax.axvline(campus_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Removal Rates by Subgroup', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(rates) + 15 if rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+def generate_posture_gauge(removal_rate, oss_rate, expulsion_count, posture):
+    """
+    Generates matplotlib figure showing discipline posture gauge.
+    
+    Args:
+        removal_rate (float): Overall removal percentage (0-100)
+        oss_rate (float): OSS percentage (0-100)
+        expulsion_count (int): Total expulsions
+        posture (str): Calculated posture (STABLE/CALIBRATE/INTERVENE/ESCALATE)
+        
+    Returns:
+        matplotlib.figure.Figure: Gauge visualization, or None if data invalid
+    """
+    
+    # Validation
+    if removal_rate is None or posture not in ['STABLE', 'CALIBRATE', 'INTERVENE', 'ESCALATE']:
+        return None
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 2.5), dpi=150)
+    fig.patch.set_facecolor('white')
+    
+    # Color palette (locked)
+    colors = {
+        'STABLE': '#2E7D32',      # Dark green
+        'CALIBRATE': '#FBC02D',   # Yellow
+        'INTERVENE': '#FF6F00',   # Bright orange
+        'ESCALATE': '#B71C1C'     # Deep red
+    }
+    
+    # Zone boundaries with gaps
+    zones = [
+        {'name': 'STABLE', 'start': 0, 'end': 35, 'color': colors['STABLE']},
+        {'name': 'CALIBRATE', 'start': 35.05, 'end': 45, 'color': colors['CALIBRATE']},
+        {'name': 'INTERVENE', 'start': 45.05, 'end': 60, 'color': colors['INTERVENE']},
+        {'name': 'ESCALATE', 'start': 60.05, 'end': 100, 'color': colors['ESCALATE']}
+    ]
+    
+    # Draw zones
+    for zone in zones:
+        rect = mpatches.Rectangle(
+            (zone['start'], 0), 
+            zone['end'] - zone['start'], 
+            1,
+            facecolor=zone['color'],
+            edgecolor='black',
+            linewidth=2
+        )
+        ax.add_patch(rect)
+        
+        # Add zone label
+        mid_point = (zone['start'] + zone['end']) / 2
+        ax.text(
+            mid_point, 
+            0.5, 
+            zone['name'],
+            ha='center',
+            va='center',
+            fontsize=11,
+            fontweight='bold',
+            color='white'
+        )
+    # Draw threshold lines
+    for threshold in [35, 45, 60]:
+        ax.axvline(x=threshold, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    
+    # Draw pointer (triangle pointing to current position)
+    pointer_x = removal_rate
+    pointer_y = 1.05
+    triangle = mpatches.Polygon(
+        [[pointer_x - 1.5, pointer_y + 0.15], 
+         [pointer_x + 1.5, pointer_y + 0.15], 
+         [pointer_x, pointer_y]],
+        closed=True,
+        facecolor='black',
+        edgecolor='black',
+        linewidth=2
+    )
+    ax.add_patch(triangle)
+    
+    # Add percentage marker at pointer
+    ax.text(
+        pointer_x,
+        pointer_y + 0.25,
+        f'{removal_rate:.1f}%',
+        ha='center',
+        va='bottom',
+        fontsize=10,
+        fontweight='bold'
+    )
+    
+    # Calculate distance to next threshold
+    if removal_rate < 35:
+        distance = 35 - removal_rate
+        next_threshold = "CALIBRATE (35%)"
+    elif removal_rate < 45:
+        distance = 45 - removal_rate
+        next_threshold = "INTERVENE (45%)"
+    elif removal_rate < 60:
+        distance = 60 - removal_rate
+        next_threshold = "ESCALATE (60%)"
+    else:
+        distance = None
+        next_threshold = "Maximum threshold"
+    
+    # Add status text below gauge
+    status_text = f"Current Status: {posture} | Removal Rate: {removal_rate:.1f}%"
+    if distance:
+        status_text += f" | Distance to {next_threshold}: {distance:.1f} points"
+    
+    ax.text(
+        50,
+        -0.3,
+        status_text,
+        ha='center',
+        va='top',
+        fontsize=10
+    )
+    
+    # Configure axes
+    ax.set_xlim(-2, 102)
+    ax.set_ylim(-0.5, 1.5)
+    ax.set_xticks([0, 35, 45, 60, 100])
+    ax.set_xticklabels(['0%', '35%', '45%', '60%', '100%'])
+    ax.set_yticks([])
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    ax.set_title('DISCIPLINE SYSTEM POSTURE', fontsize=12, fontweight='bold', pad=20)
+    
+    plt.tight_layout()
+    
+    return fig
+

@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import sys
 import sys
 from io import StringIO, BytesIO
 import tempfile
@@ -8,9 +12,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
-
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
@@ -20,8 +23,11 @@ from discipline_analyzer import (
     calculate_district_tea_stats,
     calculate_instructional_impact,
     determine_posture_texas,
+    generate_instructional_impact_chart_pdf,
     generate_school_brief,
     generate_district_tea_report,
+    generate_district_consolidated_report,
+    generate_posture_gauge,
     STATE_MODE
 )
 
@@ -272,7 +278,295 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PDF Generation Functions
-def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name):
+# =============================================================================
+# CHART GENERATION FUNCTIONS FOR PDF INTEGRATION
+# =============================================================================
+# Add these functions to discipline_analyzer.py before the posture gauge function
+
+import numpy as np
+
+def calculate_grade_removal_rates(df):
+    """
+    Calculate removal rates by grade level for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Grade' and 'Is_Removal' columns
+    
+    Returns:
+    --------
+    tuple : (grade_data dict, campus_avg float)
+    """
+    # Count total incidents and removals by grade
+    grade_stats = df.groupby('Grade').agg({
+        'Is_Removal': ['count', 'sum']
+    }).reset_index()
+    
+    grade_stats.columns = ['Grade', 'total_incidents', 'removal_incidents']
+    
+    # Calculate removal rate per grade
+    grade_stats['removal_rate'] = (grade_stats['removal_incidents'] / grade_stats['total_incidents'] * 100).round(1)
+    
+    # Create dictionary for chart
+    grade_data = dict(zip(grade_stats['Grade'].astype(str), grade_stats['removal_rate']))
+    
+    # Calculate campus-wide average removal rate
+    total_incidents = len(df)
+    total_removals = df['Is_Removal'].sum()
+    campus_avg = round((total_removals / total_incidents * 100), 1) if total_incidents > 0 else 0
+    
+    return grade_data, campus_avg
+
+
+def generate_grade_level_removal_chart_pdf(grade_data, campus_avg):
+    """
+    Generate grade-level removal rate chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not grade_data:
+        return None
+    
+    # Sort grades in logical order (K, 1-12)
+    grade_order = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+    
+    # Filter to only grades present in data and maintain order
+    grades = [g for g in grade_order if g in grade_data]
+    removal_rates = [grade_data[g] for g in grades]
+    
+    if not grades:
+        return None
+    
+    # Determine colors based on variance from campus average
+    colors = ['#FF8C42' if rate > campus_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(grades))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add campus average reference line
+    ax.axvline(campus_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(grades, fontsize=10)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Grade-Level Removal Rates', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Campus Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch], 
+              loc='upper right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_time_block_distribution(df):
+    """
+    Calculate incident distribution by time block for chart generation.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Must have 'Time_Block' column
+    
+    Returns:
+    --------
+    tuple : (time_block_data dict, avg_incidents float)
+    """
+    # Count incidents per time block
+    time_block_counts = df['Time_Block'].value_counts().to_dict()
+    
+    # Calculate average incidents per time block
+    avg_incidents = round(sum(time_block_counts.values()) / len(time_block_counts), 1) if time_block_counts else 0
+    
+    return time_block_counts, avg_incidents
+
+
+def generate_time_block_distribution_chart_pdf(time_block_data, avg_incidents):
+    """
+    Generate time block distribution chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not time_block_data:
+        return None
+    
+    # Define standard time block order
+    time_order = ['Early Morning', 'Morning', 'Mid-Morning', 'Lunch', 'Afternoon', 'Late Afternoon', 'After School']
+    
+    # Filter to only time blocks present in data and maintain order
+    time_blocks = [t for t in time_order if t in time_block_data]
+    incident_counts = [time_block_data[t] for t in time_blocks]
+    
+    # If no standard blocks found, use whatever blocks exist (sorted by count)
+    if not time_blocks:
+        sorted_items = sorted(time_block_data.items(), key=lambda x: x[1], reverse=True)
+        time_blocks = [item[0] for item in sorted_items]
+        incident_counts = [item[1] for item in sorted_items]
+    
+    if not time_blocks:
+        return None
+    
+    # Determine colors based on variance from average
+    colors = ['#FF8C42' if count > avg_incidents else '#5B7C99' for count in incident_counts]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(time_blocks))
+    bars = ax.barh(y_pos, incident_counts, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add average reference line
+    ax.axvline(avg_incidents, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, count) in enumerate(zip(bars, incident_counts)):
+        ax.text(count + (max(incident_counts) * 0.02), i, f'{count}', 
+                va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(time_blocks, fontsize=10)
+    ax.set_xlabel('Number of Incidents', fontsize=11, fontweight='bold')
+    ax.set_title('Incident Distribution by Time Block', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(incident_counts) * 1.15 if incident_counts else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above Average', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='lower right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def calculate_campus_comparison_data(campus_results):
+    """
+    Calculate campus removal rates for district comparison chart.
+    
+    Parameters:
+    -----------
+    campus_results : dict
+        Dictionary where each key is a campus name and value contains stats
+    
+    Returns:
+    --------
+    tuple : (campus_data dict, district_avg float)
+    """
+    # Extract removal rates for each campus
+    campus_data = {}
+    total_removal_rate = 0
+    
+    for campus_name, results in campus_results.items():
+        if 'stats' in results and 'removal_pct' in results['stats']:
+            campus_data[campus_name] = results['stats']['removal_pct']
+            total_removal_rate += results['stats']['removal_pct']
+    
+    # Calculate district average
+    district_avg = round(total_removal_rate / len(campus_data), 1) if campus_data else 0
+    
+    return campus_data, district_avg
+
+
+def generate_campus_comparison_chart_pdf(campus_data, district_avg):
+    """
+    Generate campus comparison chart as matplotlib Figure for PDF embedding.
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure : Chart figure ready for PDF embedding
+    """
+    if not campus_data:
+        return None
+    
+    # Sort campuses by removal rate (highest to lowest)
+    sorted_items = sorted(campus_data.items(), key=lambda x: x[1], reverse=True)
+    campus_names = [item[0] for item in sorted_items]
+    removal_rates = [item[1] for item in sorted_items]
+    
+    if not campus_names:
+        return None
+    
+    # Determine colors based on variance from district average
+    colors = ['#FF8C42' if rate > district_avg else '#5B7C99' for rate in removal_rates]
+    
+    # Create figure with dynamic height
+    fig_height = max(5, len(campus_names) * 0.4)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+    
+    # Create horizontal bars
+    y_pos = np.arange(len(campus_names))
+    bars = ax.barh(y_pos, removal_rates, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    
+    # Add district average reference line
+    ax.axvline(district_avg, color='#2C3E50', linestyle='--', linewidth=2, zorder=3)
+    
+    # Add value labels on bars
+    for i, (bar, rate) in enumerate(zip(bars, removal_rates)):
+        ax.text(rate + 1, i, f'{rate:.1f}%', va='center', fontsize=9, fontweight='bold')
+    
+    # Styling
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(campus_names, fontsize=9)
+    ax.set_xlabel('Removal Rate (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Campus Removal Rate Comparison', fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlim(0, max(removal_rates) + 10 if removal_rates else 100)
+    ax.grid(axis='x', alpha=0.3, linestyle=':')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Legend
+    import matplotlib.patches as mpatches
+    orange_patch = mpatches.Patch(color='#FF8C42', label='Above District Avg', alpha=0.85)
+    blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
+    ax.legend(handles=[orange_patch, blue_patch],
+              loc='lower right', frameon=False, fontsize=9)
+    
+    plt.tight_layout()
+    
+    return fig
+def fig_to_reportlab_image(fig, width=6*inch):
+    """Convert matplotlib figure to reportlab Image"""
+    if fig is None:
+        return None
+    
+    img_buffer = BytesIO()
+    fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+    img_buffer.seek(0)
+    plt.close(fig)
+    
+    # Create image with both width and height constraints
+    img = Image(img_buffer, width=width, height=3.5*inch)
+    return img
+def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name, df, posture):
     """Generate professional PDF for School Brief"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -313,7 +607,33 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name)
         spaceAfter=6,
         leading=14
     )
+    # Generate charts
+    from discipline_analyzer import (
+    check_for_pii_columns,
+        calculate_grade_removal_rates,
+        generate_grade_level_removal_chart_pdf,
+        calculate_time_block_distribution,
+        generate_time_block_distribution_chart_pdf,
+        analyze_equity_patterns,
+        generate_equity_chart_pdf,
+        generate_instructional_impact_chart_pdf
+    )
     
+    grade_data, campus_avg = calculate_grade_removal_rates(df)
+    grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+    grade_chart_img = fig_to_reportlab_image(grade_chart_fig, width=6*inch)
+    
+    time_data, time_avg = calculate_time_block_distribution(df)
+    time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+    time_chart_img = fig_to_reportlab_image(time_chart_fig, width=6*inch)
+    # Equity chart
+    equity_data = analyze_equity_patterns(df)
+    pdf_stats = calculate_school_brief_stats(df)
+    equity_chart_fig = generate_equity_chart_pdf(equity_data, pdf_stats['removal_pct'])
+    equity_chart_img = fig_to_reportlab_image(equity_chart_fig, width=6*inch) if equity_chart_fig else None
+    # Instructional impact chart
+    impact_chart_fig = generate_instructional_impact_chart_pdf(df)
+    impact_chart_img = fig_to_reportlab_image(impact_chart_fig, width=6*inch) if impact_chart_fig else None
     # Posture icons
     posture_icons = {
         'STABLE': '✓',
@@ -370,6 +690,28 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name)
                 current_section = []
             story.append(Spacer(1, 0.15*inch))
             story.append(Paragraph(line, heading_style))
+            
+            # Insert Grade-Level chart after its section header
+            if 'GRADE' in line and 'PRESSURE' in line and grade_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(grade_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+            
+            # Insert Time Block chart after its section header
+            if 'TIME BLOCK' in line and time_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(time_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+            # Insert Equity chart after its section header
+            if 'EQUITY' in line and 'PATTERN' in line and equity_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(equity_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+            # Insert Instructional Impact chart after its section header
+            if 'INSTRUCTIONAL IMPACT' in line and impact_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(impact_chart_img)
+                story.append(Spacer(1, 0.15*inch))        
         else:
             # Regular content
             if 'Decision Posture:' in line or 'Overall System State:' in line:
@@ -492,7 +834,138 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
     doc.build(story)
     buffer.seek(0)
     return buffer
-
+def generate_district_consolidated_report_pdf(district_report_text, period_name, campus_chart_data=None, district_avg=None, campus_impact_data=None):
+    """Generate professional PDF for District Consolidated Report"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceAfter=6,
+        alignment=TA_CENTER
+    )
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e3a8a'),
+        spaceBefore=12,
+        spaceAfter=8,
+        bold=True
+    )
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#1f2937'),
+        spaceAfter=6,
+        leading=14
+    )
+    # Generate campus comparison chart
+    campus_chart_img = None
+    if campus_chart_data and district_avg:
+        try:
+            chart_fig = generate_campus_comparison_chart_pdf(campus_chart_data, district_avg)
+            if chart_fig:
+                chart_buffer = BytesIO()
+                chart_fig.savefig(chart_buffer, format='png', dpi=150, bbox_inches='tight', 
+                                  facecolor='white', edgecolor='none')
+                chart_buffer.seek(0)
+                campus_chart_img = Image(chart_buffer, width=5.5*inch, height=3*inch)
+                plt.close(chart_fig)
+        except Exception as e:
+            pass
+    
+    # Generate district instructional impact chart
+    district_impact_chart_img = None
+    if campus_impact_data:
+        try:
+            from discipline_analyzer import generate_district_instructional_impact_chart_pdf
+            impact_fig = generate_district_instructional_impact_chart_pdf(campus_impact_data)
+            if impact_fig:
+                impact_buffer = BytesIO()
+                impact_fig.savefig(impact_buffer, format='png', dpi=150, bbox_inches='tight',
+                                   facecolor='white', edgecolor='none')
+                impact_buffer.seek(0)
+                district_impact_chart_img = Image(impact_buffer, width=5.5*inch, height=3*inch)
+                plt.close(impact_fig)
+        except Exception as e:
+            pass
+    
+    # Header
+    
+    # Header
+    story.append(Paragraph("📊 District Consolidated Report", title_style))
+    story.append(Paragraph(f"Multi-Campus Analysis — {period_name}", subtitle_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Parse report sections
+    lines = district_report_text.split('\n')
+    campus_chart_inserted = False
+    for line in lines:
+        line = line.strip()
+        if not line or '═' in line or '─' in line:
+            continue
+        
+        # Section headers (## markers)
+        if line.startswith('## '):
+            story.append(Spacer(1, 0.15*inch))
+            story.append(Paragraph(line.replace('## ', ''), heading_style))
+            
+            # Insert campus comparison chart after CAMPUS-LEVEL POSTURE section (once only)
+            if 'CAMPUS' in line and 'POSTURE' in line and campus_chart_img and not campus_chart_inserted:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(campus_chart_img)
+                story.append(Spacer(1, 0.15*inch))
+                campus_chart_inserted = True
+            # Insert instructional impact chart after INSTRUCTIONAL IMPACT section
+            if 'INSTRUCTIONAL IMPACT' in line and district_impact_chart_img:
+                story.append(Spacer(1, 0.1*inch))
+                story.append(district_impact_chart_img)
+                story.append(Spacer(1, 0.15*inch))    
+        # Bold items
+        elif line.startswith('**') and line.endswith('**'):
+            clean_line = line.replace('**', '')
+            story.append(Paragraph(f"<b>{clean_line}</b>", body_style))
+        # Key metrics
+        elif any(keyword in line for keyword in ['ESCALATE', 'INTERVENE', 'CALIBRATE', 'STABLE', 'Total:', 'removal rate', '%']):
+            story.append(Paragraph(f"<b>{line}</b>", body_style))
+        # List items
+        elif line.startswith('- '):
+            story.append(Paragraph(f"• {line[2:]}", body_style))
+        # Regular content
+        else:
+            story.append(Paragraph(line, body_style))
+    
+    # Footer
+    story.append(Spacer(1, 0.4*inch))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("Powered by Empower52 | www.empower52.com", footer_style))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 # Header
 st.markdown("# 📊 Discipline Decision Brief Analyzer")
 st.markdown('<div class="subtitle">Texas TEA Compliance Mode | Deterministic Rules-Based Analysis | **Multi-File Support**</div>', unsafe_allow_html=True)
@@ -594,7 +1067,6 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 pii_columns, df = check_for_pii_columns(df)
                 if pii_columns:
                     st.warning(f"⚠️ **{uploaded_file.name}**: PII columns detected and excluded for privacy protection: {', '.join(pii_columns)}")
-                
                 # Validate required columns
                 required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
                 missing = [col for col in required if col not in df.columns]
@@ -770,15 +1242,13 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     if STATE_MODE == "TEXAS_TEA":
                         tea_stats = calculate_district_tea_stats(df)
                         district_report = generate_district_tea_report(
-                            df, tea_stats,
-                            campus_name=campus_identifier,
-                            reporting_period=reporting_period,
-                            period_name=period_name
+                            df,
+                            campus_name=f"District (All Campuses) - {campus_identifier}",
                         )
             
             # Success message
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.success("✅ **Analysis Complete!**")
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.success("✅ **Analysis Complete!**")
             
             # MULTI-CAMPUS DISPLAY
             if mode == "MULTI-CAMPUS":
@@ -786,47 +1256,162 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 
                 # District Summary
                 st.markdown("### 🏫 District Summary")
+                # Create tabs: District Summary + Individual Campuses
+                all_tab_names = ["🏫 District Summary"] + sorted(campus_results.keys())
+                all_tabs = st.tabs(all_tab_names)
                 
-                # Create summary table
-                summary_data = []
-                for campus_name, result in sorted(campus_results.items()):
-                    summary_data.append({
-                        'Campus': campus_name,
-                        'Posture': result['posture'],
-                        'Incidents': result['stats']['total_incidents'],
-                        'Removal Rate': f"{result['stats']['removal_pct']:.1f}%",
-                        'OSS Rate': f"{result['stats']['OSS_pct']:.1f}%"
-                    })
+                # ==========================================
+                # TAB 0: DISTRICT SUMMARY
+                # ==========================================
+                with all_tabs[0]:
+                    st.markdown("### District Overview")
+                    
+                    # Create summary table
+                    summary_data = []
+                    for campus_name, result in sorted(campus_results.items()):
+                        summary_data.append({
+                            'Campus': campus_name,
+                            'Posture': result['posture'],
+                            'Incidents': result['stats']['total_incidents'],
+                            'Removal Rate': f"{result['stats']['removal_pct']:.1f}%",
+                            'OSS Rate': f"{result['stats']['OSS_pct']:.1f}%"
+                        })
+                    
+                    summary_df = pd.DataFrame(summary_data)
+                    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                    
+                    # Watchlist
+                    st.markdown("### ⚠️ District Watchlist")
+                    watchlist_campuses = [
+                        campus for campus, result in campus_results.items()
+                        if result['posture'] in ['ESCALATE', 'INTERVENE']
+                    ]
+                    
+                    if watchlist_campuses:
+                        for campus in sorted(watchlist_campuses):
+                            result = campus_results[campus]
+                            st.warning(f"**{campus}**: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate")
+                    else:
+                       st.success("No campuses requiring immediate attention")
+                    
+                # District TEA Report (formatted)
+                if len(campus_results) > 1:
+                    st.markdown("---")
+                    st.markdown("### 📋 District TEA Compliance Report")
+                    
+                    district_df = pd.concat(
+                        [result["df"] for result in campus_results.values()],
+                        ignore_index=True
+                    )
+                    # Generate district report (ONCE, not twice)
+                    district_report_text = generate_district_consolidated_report(
+                        campus_results,
+                        district_name="District (All Campuses)"
+                    )
+                    
+                    # Format the report with same styling as campus briefs
+                    lines = district_report_text.split('\n')
+                    section_content = []
+                    
+                    for line in lines:
+                        # Skip separator lines
+                        if '═' in line or '─' in line or 'END OF' in line:
+                            continue
+                            
+                        # Section headers (## style)
+                        if line.strip().startswith('##'):
+                            if section_content:
+                                st.markdown(
+                                    '<div style="background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + 
+                                    '<br>'.join(section_content) + 
+                                    '</div>', 
+                                    unsafe_allow_html=True
+                                )
+                                section_content = []
+                            st.markdown(f"#### {line.replace('##', '').strip()}")
+                            
+                        # Content lines
+                        elif line.strip():
+                            # Bold metadata lines
+                            if line.startswith('**') or ':' in line:
+                                section_content.append(f"<strong>{line.replace('**', '')}</strong>")
+                            else:
+                                section_content.append(line.replace('  ', '&nbsp;&nbsp;'))
+                    
+                    # Flush final section (OUTSIDE the loop)
+                    if section_content:
+                        st.markdown(
+                            '<div style="background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + 
+                            '<br>'.join(section_content) + 
+                            '</div>', 
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Download button (OUTSIDE the loop, with unique key)
+                    st.download_button(
+                        label="⬇️ Download District Report (TXT)",
+                        data=district_report_text,
+                        file_name="district_consolidated_report.txt",
+                        mime="text/plain",
+                        key="district_tea_report_download"
+                    )
+                    # Build campus comparison data for chart
+                    campus_chart_data = {
+                        campus: result['stats']['removal_pct'] 
+                        for campus, result in campus_results.items()
+                    }
+                    district_avg = sum(campus_chart_data.values()) / len(campus_chart_data)
+                    
+                    # Build campus impact data for chart
+                    # Build campus impact data for chart (extract from stats)
+                    campus_impact_data = {}
+                    for campus, result in campus_results.items():
+                        # Try to get days from instructional_impact or calculate from stats
+                        if 'instructional_impact' in result and result['instructional_impact']:
+                            days = result['instructional_impact'].get('total_days', 0)
+                        else:
+                            # Calculate from dataframe if available
+                            if 'df' in result and 'Days_Removed' in result['df'].columns:
+                                days = result['df']['Days_Removed'].sum()
+                            else:
+                                days = 0
+                        if days > 0:
+                            campus_impact_data[campus] = days
+                    
+                    district_pdf = generate_district_consolidated_report_pdf(
+                        district_report_text,
+                        period_name,
+                        campus_chart_data,
+                        district_avg,
+                        campus_impact_data
+                    )
+                    st.download_button(
+                        label="⬇️ Download District Report (PDF)",
+                        data=district_pdf,
+                        file_name="district_consolidated_report.pdf",
+                        mime="application/pdf",
+                        key="district_consolidated_pdf_download"
+                    )
                 
-                summary_df = pd.DataFrame(summary_data)
-                st.dataframe(summary_df, use_container_width=True, hide_index=True)
-                
-                # Watchlist
-                st.markdown("### ⚠️ District Watchlist")
-                watchlist_campuses = [
-                    campus for campus, result in campus_results.items()
-                    if result['posture'] in ['ESCALATE', 'INTERVENE']
-                ]
-                
-                if watchlist_campuses:
-                    for campus in sorted(watchlist_campuses):
-                        result = campus_results[campus]
-                        st.warning(f"**{campus}**: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate")
-                else:
-                    st.success("No campuses requiring immediate attention")
-                
-                # Individual Campus Reports
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("### 📊 Individual Campus Reports")
-                
-                # Create tabs for each campus
-                campus_tabs = st.tabs([campus for campus in sorted(campus_results.keys())])
-                
+                # ==========================================
+                # TABS 1+: INDIVIDUAL CAMPUSES
+                # ==========================================
                 for idx, campus_name in enumerate(sorted(campus_results.keys())):
-                    with campus_tabs[idx]:
+                    with all_tabs[idx + 1]:  # +1 because district is tab 0
                         result = campus_results[campus_name]
+                        # Generate and display posture gauge
+                        gauge_fig = generate_posture_gauge(
+                            result['stats']['removal_pct'],
+                            result['stats']['OSS_pct'],
+                            result['stats'].get('expulsion_count', 0),
+                            result['posture']
+                        )
+                        if gauge_fig:
+                            st.pyplot(gauge_fig)
+                            plt.close(gauge_fig)
                         
                         # Campus metrics
+                        st.markdown("<br>", unsafe_allow_html=True)
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.metric("Decision Posture", result['posture'])
@@ -837,10 +1422,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             if STATE_MODE == "TEXAS_TEA":
                                 removal_pct += result['stats']['DAEP_pct'] + result['stats']['JJAEP_pct']
                             st.metric("Removal Rate", f"{removal_pct:.1f}%")
-                        
                         # Reports sub-tabs
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        sub_tab1, sub_tab2 = st.tabs(["📄 School Brief", "📋 District TEA Report"])
+                        sub_tab1, sub_tab2 = st.tabs(["📄 School Brief", "📋 TEA Report"])
                         
                         with sub_tab1:
                             st.markdown(f"### 📄 {campus_name} — School Brief")
@@ -848,7 +1431,28 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             # Display formatted report (same as before)
                             lines = result['brief'].split('\n')
                             section_content = []
+                        # Generate charts for this campus
+                            from discipline_analyzer import (
+    check_for_pii_columns,
+                                calculate_grade_removal_rates,
+                                generate_grade_level_removal_chart_pdf,
+                                calculate_time_block_distribution,
+                                generate_time_block_distribution_chart_pdf,
+                                analyze_equity_patterns,
+                                generate_equity_chart_pdf,
+                                generate_instructional_impact_chart_pdf
+                            )
                             
+                            campus_df = result['df']
+                            grade_data, campus_avg = calculate_grade_removal_rates(campus_df)
+                            grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+                            
+                            time_data, time_avg = calculate_time_block_distribution(campus_df)
+                            time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+                            
+                            equity_data = analyze_equity_patterns(campus_df)
+                            equity_chart_fig = generate_equity_chart_pdf(equity_data, result['stats']['removal_pct'])    
+                            impact_chart_fig = generate_instructional_impact_chart_pdf(campus_df)
                             for line in lines:
                                 if '═' in line or '─' in line:
                                     continue
@@ -857,6 +1461,21 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                         st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                                         section_content = []
                                     st.markdown(f"#### {line.strip()}")
+                                # Insert charts after their section headers
+                                    if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                        st.pyplot(grade_chart_fig)
+                                        plt.close(grade_chart_fig)
+                                    
+                                    if 'TIME BLOCK' in line and time_chart_fig:
+                                        st.pyplot(time_chart_fig)
+                                        plt.close(time_chart_fig)
+                                    
+                                    if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                        st.pyplot(equity_chart_fig)
+                                        plt.close(equity_chart_fig) 
+                                    if 'INSTRUCTIONAL IMPACT' in line and impact_chart_fig:
+                                        st.pyplot(impact_chart_fig)
+                                        plt.close(impact_chart_fig)       
                                 elif line.strip():
                                     if 'Decision Posture:' in line or 'Overall System State:' in line:
                                         parts = line.split(':')
@@ -875,7 +1494,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             pdf_buffer = generate_school_brief_pdf(
                                 result['brief'],
                                 uploaded_filename=campus_name,
-                                period_name=period_name,)
+                                period_name=period_name,
+                                df=result['df'],
+                                posture=result['posture'])
                             clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
                             clean_campus = campus_name.replace(' ', '_')
                             filename = f"school_brief_{clean_campus}_{clean_period}.pdf"
@@ -884,7 +1505,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                 data=pdf_buffer,
                                 file_name=filename,
                                 mime="application/pdf",
-                                use_container_width=True
+                                use_container_width=True,
+                                key=f"campus_brief_{campus_name.replace(' ', '_')}_download"
                             )
                         
                         with sub_tab2:
@@ -903,6 +1525,19 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                             st.markdown('<div style="background-color: white; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; border-left: 4px solid #10b981;">' + '<br>'.join(section_content) + '</div>', unsafe_allow_html=True)
                                             section_content = []
                                         st.markdown(f"#### {line.strip()}")
+                                    
+                                    # Insert charts after their section headers
+                                    if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                        st.pyplot(grade_chart_fig)
+                                        plt.close(grade_chart_fig)
+                                    
+                                    if 'TIME BLOCK' in line and time_chart_fig:
+                                        st.pyplot(time_chart_fig)
+                                        plt.close(time_chart_fig)
+                                    
+                                    if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                        st.pyplot(equity_chart_fig)
+                                        plt.close(equity_chart_fig)
                                     elif line.strip():
                                         if 'Code ' in line or '%' in line or 'Total TEA Actions' in line:
                                             st.markdown(f"**{line}**")
@@ -923,7 +1558,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                     data=pdf_buffer,
                                     file_name=filename,
                                     mime="application/pdf",
-                                    use_container_width=True
+                                    use_container_width=True,
+                                    key=f"campus_tea_{campus_name.replace(' ', '_')}_download"
                                 )
                             else:
                                 st.info("District TEA Report only available in Texas mode")
@@ -932,6 +1568,23 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             else:
                 # Show mode and period info
                 st.info(f"📅 **{reporting_period} Report:** {period_name} | **Mode:** {mode}")
+                # Calculate removal rate for gauge
+                removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
+                if STATE_MODE == "TEXAS_TEA":
+                    removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
+                
+                # Generate and display posture gauge
+                gauge_fig = generate_posture_gauge(
+                    removal_pct,
+                    school_stats['OSS_pct'],
+                    school_stats.get('expulsion_count', 0),
+                    posture
+                )
+                if gauge_fig:
+                    st.pyplot(gauge_fig)
+                    plt.close(gauge_fig)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
                 
                 # Key metrics
                 st.markdown("### Key Findings")
@@ -944,9 +1597,6 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     st.metric("Total Incidents", f"{school_stats['total_incidents']:,}")
                 
                 with col3:
-                    removal_pct = school_stats['ISS_pct'] + school_stats['OSS_pct']
-                    if STATE_MODE == "TEXAS_TEA":
-                        removal_pct += school_stats['DAEP_pct'] + school_stats['JJAEP_pct']
                     st.metric("Removal Rate", f"{removal_pct:.1f}%")
                 
                 # Reports tabs
@@ -956,7 +1606,27 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 with tab1:
                     # Parse and display School Brief beautifully
                     st.markdown("### 📄 School Brief (Principal-Facing)")
+                    # Generate charts for web display
+                    from discipline_analyzer import (
+    check_for_pii_columns,
+                        calculate_grade_removal_rates,
+                        generate_grade_level_removal_chart_pdf,
+                        calculate_time_block_distribution,
+                        generate_time_block_distribution_chart_pdf,
+                        analyze_equity_patterns,
+                        generate_equity_chart_pdf,
+                        generate_instructional_impact_chart_pdf
+                    )
                     
+                    grade_data, campus_avg = calculate_grade_removal_rates(df)
+                    grade_chart_fig = generate_grade_level_removal_chart_pdf(grade_data, campus_avg)
+                    
+                    time_data, time_avg = calculate_time_block_distribution(df)
+                    time_chart_fig = generate_time_block_distribution_chart_pdf(time_data, time_avg)
+                    
+                    equity_data = analyze_equity_patterns(df)
+                    equity_chart_fig = generate_equity_chart_pdf(equity_data, school_stats['removal_pct'])
+                    impact_chart_fig = generate_instructional_impact_chart_pdf(df)
                     # Display formatted report
                     lines = school_brief.split('\n')
                     in_section = False
@@ -974,6 +1644,22 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                                 section_content = []
                             st.markdown(f"#### {line.strip()}")
                             in_section = True
+                            
+                            # Insert charts after their section headers
+                            if 'GRADE' in line and 'PRESSURE' in line and grade_chart_fig:
+                                st.pyplot(grade_chart_fig)
+                                plt.close(grade_chart_fig)
+                            
+                            if 'TIME BLOCK' in line and time_chart_fig:
+                                st.pyplot(time_chart_fig)
+                                plt.close(time_chart_fig)
+                            
+                            if 'EQUITY' in line and 'PATTERN' in line and equity_chart_fig:
+                                st.pyplot(equity_chart_fig)
+                                plt.close(equity_chart_fig)
+                            if 'INSTRUCTIONAL IMPACT' in line and impact_chart_fig:
+                                st.pyplot(impact_chart_fig)
+                                plt.close(impact_chart_fig)    
                         # Content lines
                         elif line.strip():
                             # Highlight key metrics
@@ -992,7 +1678,7 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     
                     # Download PDF button with period-based filename
                     st.markdown("<br>", unsafe_allow_html=True)
-                    pdf_buffer = generate_school_brief_pdf(school_brief, uploaded_files[0].name, period_name)
+                    pdf_buffer = generate_school_brief_pdf(school_brief, uploaded_files[0].name, period_name, df, posture)
                     
                     # Clean period name for filename
                     clean_period = period_name.replace(' ', '_').replace(',', '').replace('/', '-')
@@ -1003,7 +1689,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         data=pdf_buffer,
                         file_name=filename,
                         mime="application/pdf",
-                        use_container_width=True
+                        use_container_width=True,
+                        key=f"school_brief_{campus_name.replace(' ', '_')}_download"
                     )
                 
                 with tab2:
@@ -1050,7 +1737,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                             data=pdf_buffer,
                             file_name=filename,
                             mime="application/pdf",
-                            use_container_width=True
+                            use_container_width=True,
+                            key="district_report_pdf_download"
                         )
                     else:
                         st.info("District TEA Report only available in Texas mode")
