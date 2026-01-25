@@ -32,6 +32,39 @@ TEA_ACTION_MAPPING = {
     'Expulsion': ['01', '02', '03', '04'],
     'Expelled': ['01', '02', '03', '04']
 }
+# ============================================================================
+# FERPA COMPLIANCE - PII DETECTION
+# ============================================================================
+
+def check_for_pii_columns(df):
+    """
+    Scan dataframe columns for potential PII (Personally Identifiable Information).
+    Returns tuple: (flagged_columns, clean_df)
+    - flagged_columns: list of column names that may contain PII
+    - clean_df: dataframe with PII columns removed
+    """
+    pii_patterns = [
+        'name', 'first', 'last', 'fname', 'lname', 
+        'student_name', 'full_name', 'studentname',
+        'ssn', 'social', 'address', 'street',
+        'phone', 'email', 'parent', 'guardian',
+        'dob', 'birth', 'birthdate'
+    ]
+    
+    flagged_columns = []
+    for col in df.columns:
+        col_lower = col.lower().replace('_', '').replace(' ', '').replace('-', '')
+        for pattern in pii_patterns:
+            if pattern in col_lower:
+                flagged_columns.append(col)
+                break
+    
+    # Create clean dataframe with PII columns removed
+    safe_columns = [c for c in df.columns if c not in flagged_columns]
+    clean_df = df[safe_columns].copy()
+    
+    return flagged_columns, clean_df
+
 
 # ============================================================================
 # TEA ACTION MAPPING

@@ -14,6 +14,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
 from discipline_analyzer import (
+    check_for_pii_columns,
     apply_tea_mapping,
     calculate_school_brief_stats,
     calculate_district_tea_stats,
@@ -587,6 +588,12 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     df = pd.read_csv(uploaded_file)
                 else:
                     df = pd.read_excel(uploaded_file)
+                
+                
+                # FERPA: Check for PII columns
+                pii_columns, df = check_for_pii_columns(df)
+                if pii_columns:
+                    st.warning(f"⚠️ **{uploaded_file.name}**: PII columns detected and excluded for privacy protection: {', '.join(pii_columns)}")
                 
                 # Validate required columns
                 required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
