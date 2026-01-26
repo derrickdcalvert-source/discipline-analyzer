@@ -678,6 +678,7 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     
     for line in lines:
         line = line.strip()
+        line = line.replace("**", "").replace("## ", "")
         if not line or '═' in line or '─' in line:
             continue
         
@@ -795,6 +796,7 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
     
     for line in lines:
         line = line.strip()
+        line = line.replace("**", "").replace("## ", "")
         if not line or '═' in line or '─' in line:
             continue
         
@@ -918,6 +920,7 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name,
     campus_chart_inserted = False
     for line in lines:
         line = line.strip()
+        line = line.replace("**", "").replace("## ", "")
         if not line or '═' in line or '─' in line:
             continue
         

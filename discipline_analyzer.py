@@ -483,7 +483,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += "```\n"
         
         # Sort by grade and display in table format
-        for grade in sorted(impact['grade_distribution'].keys(), key=str):
+        for grade in sorted(impact['grade_distribution'].keys(), key=lambda x: int(x) if str(x).isdigit() else -1):
             data = impact['grade_distribution'][grade]
             days = data['Days_Removed']
             minutes = data['Minutes_Lost']
@@ -531,7 +531,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     }).reset_index()
     grade_analysis['Removal_Rate'] = (grade_analysis['Is_Removal'] / grade_analysis['Response'] * 100)
     grade_analysis['Variance'] = grade_analysis['Removal_Rate'] - stats['removal_pct']
-    grade_analysis = grade_analysis.sort_values('Removal_Rate', ascending=False)
+    grade_analysis = grade_analysis.sort_values('Grade', key=lambda x: x.apply(lambda g: int(g) if str(g).isdigit() else -1))
     
     brief += "**Removal Rate by Grade:**\n\n"
     for _, row in grade_analysis.iterrows():
@@ -1401,7 +1401,7 @@ def generate_district_instructional_impact_chart_pdf(campus_impact_data):
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     threshold_line = plt.Line2D([0], [0], color='#DC2626', linestyle='--', linewidth=2, label='Chronic Threshold (10 days)')
     ax.legend(handles=[orange_patch, blue_patch, threshold_line],
-              loc='lower right', frameon=False, fontsize=8)
+              loc='upper right', frameon=False, fontsize=8)
     
     plt.tight_layout()
     
