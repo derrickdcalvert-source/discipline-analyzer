@@ -1297,6 +1297,27 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     else:
                        st.success("No campuses requiring immediate attention")
                     
+                    
+                    # District Instructional Impact Chart
+                    st.markdown("### 📊 Instructional Days Lost by Campus")
+                    
+                    # Build campus impact data
+                    campus_impact_data = {}
+                    for campus, result in campus_results.items():
+                        if 'impact' in result and result['impact']:
+                            days = result['impact'].get('total_days', 0)
+                            if days > 0:
+                                campus_impact_data[campus] = days
+                    
+                    if campus_impact_data:
+                        from discipline_analyzer import generate_district_instructional_impact_chart_pdf
+                        impact_chart_fig = generate_district_instructional_impact_chart_pdf(campus_impact_data)
+                        if impact_chart_fig:
+                            st.pyplot(impact_chart_fig)
+                            plt.close(impact_chart_fig)
+                    else:
+                        st.info("Instructional impact data not available")
+                    
                 # District TEA Report (formatted)
                 if len(campus_results) > 1:
                     st.markdown("---")
