@@ -1248,6 +1248,15 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         campus_name=campus_identifier,
                     )
                     
+                    if STATE_MODE == "TEXAS_TEA":
+                        district_report = generate_district_tea_report(
+                            df,
+                            campus_name=campus_identifier,
+                        )
+                    else:
+                        district_report = None
+                
+                # Success message   
                 
                 # Success message
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -1390,9 +1399,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                     # Build campus impact data for chart (extract from stats)
                     campus_impact_data = {}
                     for campus, result in campus_results.items():
-                        # Try to get days from instructional_impact or calculate from stats
-                        if 'instructional_impact' in result and result['instructional_impact']:
-                            days = result['instructional_impact'].get('total_days', 0)
+                        # Try to get days from impact or calculate from stats
+                        if 'impact' in result and result['impact']:
+                            days = result['impact'].get('total_days', 0)
                         else:
                             # Calculate from dataframe if available
                             if 'df' in result and 'Days_Removed' in result['df'].columns:
