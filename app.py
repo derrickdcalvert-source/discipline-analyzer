@@ -1119,6 +1119,11 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             df = pd.concat(all_dfs, ignore_index=True)
             campus_identifier = campus_name
         
+        # Track rows before validation
+        total_rows_uploaded = len(df)
+        
+        # STEP 3: Display detection results
+        
         # STEP 3: Display detection results
         if mode == "SINGLE-FILE":
             st.success(f"✅ **SINGLE-FILE MODE**: {len(df)} incidents loaded")
@@ -1242,14 +1247,9 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                         df, 
                         campus_name=campus_identifier,
                     )
-                    if STATE_MODE == "TEXAS_TEA":
-                        tea_stats = calculate_district_tea_stats(df)
-                        district_report = generate_district_tea_report(
-                            df,
-                            campus_name=f"District (All Campuses) - {campus_identifier}",
-                        )
-            
-            # Success message
+                    
+                
+                # Success message
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.success("✅ **Analysis Complete!**")
             

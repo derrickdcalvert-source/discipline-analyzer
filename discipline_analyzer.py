@@ -446,8 +446,8 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += f"**Date Range:** {df['Date'].min()} to {df['Date'].max()}\n"
     brief += f"**State Mode:** {state_mode}\n"
     brief += f"**Data Hash:** {data_hash[:16]}...\n"
+    brief += f"**Rows Analyzed:** {len(df):,}\n"
     brief += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    brief += "─" * 80 + "\n\n"
     
     # ========================================================================
     # SECTION 2: DISCIPLINE SYSTEM STATUS — AT A GLANCE
