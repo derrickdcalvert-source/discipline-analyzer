@@ -956,12 +956,19 @@ ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
     escalate_count = len([c for c in campus_results.values() if c['posture'] == 'ESCALATE'])
     intervene_count = len([c for c in campus_results.values() if c['posture'] == 'INTERVENE'])
     
-    if escalate_count > 0:
+    # Posture-appropriate district language
+    if district_posture == 'ESCALATE':
         report += f"District faces crisis-level pressure with {escalate_count} campus(es) in ESCALATE posture. "
-    if intervene_count > 0:
-        report += f"{intervene_count} additional campus(es) require intervention. "
+    elif district_posture == 'INTERVENE':
+        report += f"District requires coordinated intervention with {intervene_count + escalate_count} campus(es) at elevated posture. "
+    elif district_posture == 'CALIBRATE':
+        report += f"District shows elevated pressure requiring monitoring. "
+        if escalate_count > 0:
+            report += f"{escalate_count} campus(es) require immediate attention. "
+    else:  # STABLE
+        report += "District operates within expected parameters. "
     
-    report += f"District-wide removal rate at {district_stats['removal_pct']:.1f}%. Immediate executive attention required for high-priority campuses.\n"
+    report += f"District-wide removal rate at {district_stats['removal_pct']:.1f}%.\n"
     
     report += f"\n{'='*80}\n"
     report += "END OF DISTRICT CONSOLIDATED REPORT\n"
