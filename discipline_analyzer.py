@@ -1246,11 +1246,11 @@ def generate_campus_comparison_chart_pdf(campus_data, district_avg):
     orange_patch = mpatches.Patch(color='#FF8C42', label='Above District Avg', alpha=0.85)
     blue_patch = mpatches.Patch(color='#5B7C99', label='At/Below Avg', alpha=0.85)
     ax.legend(handles=[orange_patch, blue_patch],
-              loc='upper right', frameon=False, fontsize=9)
-    
-    plt.tight_layout()
+              loc='upper left', bbox_to_anchor=(1.02, 1), frameon=False, fontsize=9)
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
     
     return fig
+
 def generate_instructional_impact_chart_pdf(df, grade_band_minutes=None):
     """
     Generate instructional impact chart showing days lost by grade level.

@@ -1,3 +1,4 @@
+from matplotlib import lines
 import streamlit as st
 import pandas as pd
 import streamlit as st
@@ -919,13 +920,13 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name,
     lines = district_report_text.split('\n')
     campus_chart_inserted = False
     for line in lines:
-        line = line.strip()
-        line = line.replace("**", "").replace("## ", "")
+        original_line = line.strip()
+        line = original_line.replace("**", "").replace("## ", "")
         if not line or '═' in line or '─' in line:
             continue
         
         # Section headers (## markers)
-        if line.startswith('## '):
+        if original_line.startswith('## '):
             story.append(Spacer(1, 0.15*inch))
             story.append(Paragraph(line.replace('## ', ''), heading_style))
             
