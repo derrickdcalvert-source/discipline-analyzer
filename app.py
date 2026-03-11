@@ -17,6 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
+from atlas.ingestion.ingestion import run_ingestion, IngestionError
 from discipline_analyzer import (
     check_for_pii_columns,
     apply_tea_mapping,
@@ -1053,42 +1054,58 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files is not None and len(uploaded_files) > 0:
     try:
-        # STEP 1: Load all files
-        st.markdown("### 🔍 File Detection")
-        
-        with st.spinner("Loading files..."):
-            all_dfs = []
-            file_info = []
-            
-            for uploaded_file in uploaded_files:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                
-                # FERPA: Check for PII columns
-                pii_columns, df = check_for_pii_columns(df)
-                if pii_columns:
-                    st.warning(f"⚠️ **{uploaded_file.name}**: PII columns detected and excluded for privacy protection: {', '.join(pii_columns)}")
-                # Validate required columns
-                required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
-                missing = [col for col in required if col not in df.columns]
-                
-                if missing:
-                    st.error(f"❌ **{uploaded_file.name}**: Missing required columns: {', '.join(missing)}")
-                    st.stop()
-                
-                # Convert Date to datetime
-                df['Date'] = pd.to_datetime(df['Date'])
-                
-                all_dfs.append(df)
-                file_info.append({
-                    'name': uploaded_file.name,
-                    'rows': len(df),
-                    'has_campus': 'Campus' in df.columns
-                })
-        
+        # INGESTION GATE — data must pass before analysis proceeds
+        st.markdown("### File Detection")
+        if len(uploaded_files) != 1:
+            st.error("Atlas requires exactly one file: the Skyward Discipline - Incident Offense Name Actions Excel export.")
+            st.stop()
+        with st.spinner("Running ingestion checks..."):
+            uploaded_file = uploaded_files[0]
+            if uploaded_file.name.endswith('.csv'):
+                raw_df = pd.read_csv(uploaded_file)
+            else:
+                raw_df = pd.read_excel(uploaded_file)
+            COLUMN_MAP = {
+                'Incident Date': 'Date',
+                'Grade': 'Grade',
+                'Offense': 'Incident_Type',
+                'Location': 'Location',
+                'Action': 'Response',
+                'Total to Serve': 'Days_Removed',
+                'Student Number': 'Student_ID',
+                'Reported Federal Race': 'Race',
+                'Gender': 'Gender',
+                'Has Active Special Education': 'SPED',
+                'Has Active EB': 'EB',
+            }
+            df = raw_df.rename(columns=COLUMN_MAP)
+            if 'Days_Removed' in df.columns:
+                df['Days_Removed'] = df['Days_Removed'].astype(str).str.extract(r'([0-9.]+)')[0].astype(float, errors='ignore')
+                df['Days_Removed'] = pd.to_numeric(df['Days_Removed'], errors='coerce').fillna(0)
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                def derive_time_block(dt):
+                    if pd.isnull(dt): return 'Unknown'
+                    h = dt.hour
+                    if h < 12: return 'Morning'
+                    elif h < 14: return 'Lunch'
+                    else: return 'Afternoon'
+                df['Time_Block'] = df['Date'].apply(derive_time_block)
+            required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
+            missing = [col for col in required if col not in df.columns]
+            if missing:
+                st.error(f"Ingestion failed. Missing columns: {', '.join(missing)}")
+                st.stop()
+            before = len(df)
+            df = df.dropna(subset=required)
+            excluded = before - len(df)
+            if excluded > 0:
+                st.warning(f"{excluded} rows excluded — missing required fields.")
+            if len(df) == 0:
+                st.error("Ingestion failed. No valid rows remain.")
+                st.stop()
+            all_dfs = [df]
+            file_info = [{'name': uploaded_file.name, 'rows': len(df), 'has_campus': 'Campus' in df.columns}]
         # STEP 2: Detection Logic
         has_campus_column = any(info['has_campus'] for info in file_info)
         
