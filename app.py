@@ -1079,6 +1079,8 @@ if uploaded_files is not None and len(uploaded_files) > 0:
                 'Has Active EB': 'EB',
             }
             df = raw_df.rename(columns=COLUMN_MAP)
+            if 'Grade' in df.columns:
+                df['Grade'] = df['Grade'].astype(str).str.replace(r'\.0$', '', regex=True)
             if 'Days_Removed' in df.columns:
                 df['Days_Removed'] = df['Days_Removed'].astype(str).str.extract(r'([0-9.]+)')[0].astype(float, errors='ignore')
                 df['Days_Removed'] = pd.to_numeric(df['Days_Removed'], errors='coerce').fillna(0)

@@ -487,7 +487,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
             data = impact['grade_distribution'][grade]
             days = data['Days_Removed']
             minutes = data['Minutes_Lost']
-            brief += f"Grade {str(grade):>2}: {int(minutes):>6,} minutes ({days:>5.1f} days)\n"
+            brief += "Grade " + str(grade).replace(".0", "") + f": {int(minutes):>6,} minutes ({days:>5.1f} days)\n"
         
         brief += "─" * 40 + "\n"
         brief += f"TOTAL:    {impact['total_minutes']:>6,} minutes ({impact['total_days']:>5.1f} days)\n"
@@ -633,9 +633,9 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += f"System cannot sustain current removal rate without operational consequences.\n\n"
     elif posture == "INTERVENE":
         brief += f"**What is breaking:** Removal rate approaching crisis threshold. {top_removal_incident['Incident_Type']} incidents driving system pressure.\n\n"
-        brief += f"**Where leadership attention must go:** Monitor Grade {grade_analysis.iloc[0]['Grade']} closely. Deploy targeted support to {top_removal_location['Location']}.\n\n"
+        brief += f"**Where leadership attention must go:** Monitor Grade {str(grade_analysis.iloc[0]['Grade']).replace('.0', '')} closely. Deploy targeted support to {top_removal_location['Location']}.\n\n"
     elif posture == "CALIBRATE":
-        brief += f"**What is breaking:** System trending toward intervention levels. Early pressure signals in Grade {grade_analysis.iloc[0]['Grade']}.\n\n"
+        brief += f"**What is breaking:** System trending toward intervention levels. Early pressure signals in Grade {str(grade_analysis.iloc[0]['Grade']).replace('.0', '')}.\n\n"
         brief += f"**Where leadership attention must go:** Active monitoring of {top_removal_incident['Incident_Type']} incidents. Prevent escalation through early intervention.\n\n"
     else:
         brief += "**Current assessment:** No immediate crisis indicators. System operating within normal parameters. Continue routine monitoring.\n\n"
@@ -734,11 +734,11 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     
     if posture == "ESCALATE":
         brief += f"Campus discipline system operates in crisis mode at {stats['removal_pct']:.1f}% removal rate. "
-        brief += f"Grade {grade_analysis.iloc[0]['Grade']} drives system pressure through {top_removal_incident['Incident_Type']} incidents. "
+        brief += f"Grade {str(grade_analysis.iloc[0]['Grade']).replace('.0', '')} drives system pressure through {top_removal_incident['Incident_Type']} incidents. "
         brief += f"Current trajectory unsustainable. Executive intervention required immediately.\n\n"
     elif posture == "INTERVENE":
         brief += f"System pressure approaching crisis thresholds at {stats['removal_pct']:.1f}% removal. "
-        brief += f"Targeted action needed in Grade {grade_analysis.iloc[0]['Grade']} and {top_removal_location['Location']}. "
+        brief += f"Targeted action needed in Grade {str(grade_analysis.iloc[0]['Grade']).replace('.0', '')} and {top_removal_location['Location']}. "
         brief += f"Window for preventive intervention closing.\n\n"
     elif posture == "CALIBRATE":
         brief += f"System trending toward intervention zone at {stats['removal_pct']:.1f}% removal. "
