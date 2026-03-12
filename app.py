@@ -1115,7 +1115,11 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             # Single file mode
             mode = "SINGLE-FILE"
             df = all_dfs[0]
-            campus_identifier = campus_name
+            if 'Entity' in df.columns and df['Entity'].notna().any():
+                entity_vals = df['Entity'].dropna().unique()
+                campus_identifier = str(entity_vals[0])
+            else:
+                campus_identifier = campus_name
             
         elif has_campus_column:
             # Check unique campuses across all files
@@ -1137,7 +1141,11 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             # No Campus column, assume split-campus
             mode = "SPLIT-CAMPUS"
             df = pd.concat(all_dfs, ignore_index=True)
-            campus_identifier = campus_name
+            if 'Entity' in df.columns and df['Entity'].notna().any():
+                entity_vals = df['Entity'].dropna().unique()
+                campus_identifier = str(entity_vals[0])
+            else:
+                campus_identifier = campus_name
         
         # Track rows before validation
         total_rows_uploaded = len(df)
