@@ -1060,95 +1060,32 @@ if uploaded_files is not None and len(uploaded_files) > 0:
             st.error("Atlas requires exactly one file: the Skyward Discipline - Incident Offense Name Actions Excel export.")
             st.stop()
         with st.spinner("Running ingestion checks..."):
-            uploaded_file = uploaded_files[0]
-            if uploaded_file.name.endswith('.csv'):
-                raw_df = pd.read_csv(uploaded_file)
-            else:
-                raw_df = pd.read_excel(uploaded_file)
-            COLUMN_MAP = {
-                'Incident Date': 'Date',
-                'Grade': 'Grade',
-                'Offense': 'Incident_Type',
-                'Location': 'Location',
-                'Action': 'Response',
-                'Total to Serve': 'Days_Removed',
-                'Student Number': 'Student_ID',
-                'Reported Federal Race': 'Race',
-                'Gender': 'Gender',
-                'Has Active Special Education': 'SPED',
-                'Has Active EB': 'EB',
-            }
-            df = raw_df.rename(columns=COLUMN_MAP)
-            if 'Grade' in df.columns:
-                df['Grade'] = df['Grade'].astype(str).str.replace(r'\.0$', '', regex=True)
-            if 'Days_Removed' in df.columns:
-                df['Days_Removed'] = df['Days_Removed'].astype(str).str.extract(r'([0-9.]+)')[0].astype(float, errors='ignore')
-                df['Days_Removed'] = pd.to_numeric(df['Days_Removed'], errors='coerce').fillna(0)
-            if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                def derive_time_block(dt):
-                    if pd.isnull(dt): return 'Unknown'
-                    h = dt.hour
-                    if h < 12: return 'Morning'
-                    elif h < 14: return 'Lunch'
-                    else: return 'Afternoon'
-                df['Time_Block'] = df['Date'].apply(derive_time_block)
-            required = ['Date', 'Grade', 'Incident_Type', 'Location', 'Time_Block', 'Response']
-            missing = [col for col in required if col not in df.columns]
-            if missing:
-                st.error(f"Ingestion failed. Missing columns: {', '.join(missing)}")
+            from atlas.ingestion.skyward_ingestion import run_skyward_ingestion, SkywardIngestionError
+            try:
+                ingestion_result = run_skyward_ingestion(
+                    uploaded_files[0],
+                    campus_name_fallback=campus_name,
+                )
+            except SkywardIngestionError as e:
+                st.error(str(e))
                 st.stop()
-            before = len(df)
-            df = df.dropna(subset=required)
-            excluded = before - len(df)
-            if excluded > 0:
-                st.warning(f"{excluded} rows excluded — missing required fields.")
-            if len(df) == 0:
-                st.error("Ingestion failed. No valid rows remain.")
-                st.stop()
-            all_dfs = [df]
-            file_info = [{'name': uploaded_file.name, 'rows': len(df), 'has_campus': 'Campus' in df.columns}]
-        # STEP 2: Detection Logic
-        has_campus_column = any(info['has_campus'] for info in file_info)
-        
-        if len(uploaded_files) == 1:
-            # Single file mode
+
+            df = ingestion_result.df
+            campus_identifier = ingestion_result.campus_identifier
             mode = "SINGLE-FILE"
-            df = all_dfs[0]
-            if 'Entity' in df.columns and df['Entity'].notna().any():
-                entity_vals = df['Entity'].dropna().unique()
-                campus_identifier = str(entity_vals[0])
-            else:
-                campus_identifier = campus_name
-            
-        elif has_campus_column:
-            # Check unique campuses across all files
-            all_campus_values = set()
-            for df_temp in all_dfs:
-                if 'Campus' in df_temp.columns:
-                    all_campus_values.update(df_temp['Campus'].unique())
-            
-            if len(all_campus_values) == 1:
-                mode = "SPLIT-CAMPUS"
-                df = pd.concat(all_dfs, ignore_index=True)
-                campus_identifier = list(all_campus_values)[0]
-            else:
-                mode = "MULTI-CAMPUS"
-                df = pd.concat(all_dfs, ignore_index=True)
-                campus_identifier = "Multiple Campuses"
-                
-        else:
-            # No Campus column, assume split-campus
-            mode = "SPLIT-CAMPUS"
-            df = pd.concat(all_dfs, ignore_index=True)
-            if 'Entity' in df.columns and df['Entity'].notna().any():
-                entity_vals = df['Entity'].dropna().unique()
-                campus_identifier = str(entity_vals[0])
-            else:
-                campus_identifier = campus_name
-        
-        # Track rows before validation
+            all_dfs = [df]
+            file_info = [{'name': uploaded_files[0].name, 'rows': len(df), 'has_campus': 'Campus' in df.columns}]
+
+            if ingestion_result.rows_excluded > 0:
+                for note in ingestion_result.exclusion_notes:
+                    st.warning(note)
+
+            for flag in ingestion_result.flags:
+                st.info(f"ℹ️ {flag}")
+
+        # Track rows before display
         total_rows_uploaded = len(df)
+        all_campus_values = set(df['Campus'].dropna().unique()) if 'Campus' in df.columns else set()
         
         # STEP 3: Display detection results
         
