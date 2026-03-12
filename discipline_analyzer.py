@@ -479,8 +479,6 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     if impact['suppressed']:
         brief += f"*Section suppressed: {impact['reason']}*\n\n"
     else:
-        brief += "**Impact by Grade:**\n\n"
-        brief += "```\n"
         
         # Sort by grade and display in table format
         for grade in sorted(impact['grade_distribution'].keys(), key=lambda x: int(x) if str(x).isdigit() else -1):
@@ -491,10 +489,9 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         
         brief += "─" * 40 + "\n"
         brief += f"TOTAL:    {impact['total_minutes']:>6,} minutes ({impact['total_days']:>5.1f} days)\n"
-        brief += "```\n\n"
+        brief += "\n"
         
         # STAAR & Accountability Context (UPDATED WITH CHRONIC ABSENTEEISM)
-        brief += "**STAAR & Accountability Context:**\n\n"
         brief += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n\n"
         brief += "Under Texas accountability, students removed from instruction for 10% or more of enrolled days meet the chronic absenteeism threshold. Disciplinary removals count toward this metric and affect campus ratings in the Academic Achievement domain.\n\n"
     
@@ -566,7 +563,34 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     # ========================================================================
     
     brief += "## LOCATION HOTSPOTS\n\n"
-    
+    # Normalize location codes before grouping
+    location_map = {
+        '00': 'Classroom',
+        'C': 'Classroom',
+        'CLASSROOM': 'Classroom',
+        'H': 'Hallway',
+        'HALLWAY': 'Hallway',
+        'CAF': 'Cafeteria',
+        'CAFETERIA': 'Cafeteria',
+        'GYM': 'Gym',
+        'BUS': 'Bus',
+        'OFF': 'Off Campus',
+        'OFFICE': 'Office',
+        'RESTROOM': 'Restroom',
+        'R': 'Restroom',
+        'OUT': 'Outside/Campus Grounds',
+        'O': 'Outside/Campus Grounds',
+    }
+
+    def normalize_location(loc):
+        if not isinstance(loc, str):
+            return str(loc)
+        key = loc.split(' - ')[0].strip().upper()
+        return location_map.get(key, loc)
+
+    df = df.copy()
+    df['Location'] = df['Location'].apply(normalize_location)
+
     location_analysis = df.groupby('Location').agg({
         'Response': 'count',
         'Is_Removal': 'sum'
