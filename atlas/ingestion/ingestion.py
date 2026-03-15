@@ -261,7 +261,7 @@ def _mechanical_normalize(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     log: list[str] = []
     df = df.copy()
 
-    for col in df.select_dtypes(include=["object", "str"]).columns:
+    for col in df.select_dtypes(include=["object"]).columns:
         original = df[col].copy()
         df[col] = (
             df[col]
