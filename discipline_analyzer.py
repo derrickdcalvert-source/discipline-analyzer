@@ -721,6 +721,22 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     for _, row in location_analysis.head(3).iterrows():
         if row['Removal_Rate'] > stats['removal_pct'] * 1.2:
             watch_items.append(f"{row['Location']} converting to removal at {row['Removal_Rate']:.1f}% (above campus avg)")
+
+    # Check for grades with disproportionate instructional days lost (1.5x grade average)
+    if 'Days_Removed' in df.columns:
+        grade_days = df.groupby('Grade')['Days_Removed'].sum().reset_index()
+        grade_days.columns = ['Grade', 'Days_Lost']
+        grade_days = grade_days[grade_days['Days_Lost'] > 0]
+        if len(grade_days) > 1:
+            avg_days_lost = grade_days['Days_Lost'].mean()
+            for _, row in grade_days.iterrows():
+                if row['Days_Lost'] >= avg_days_lost * 1.5:
+                    grade_label = str(row['Grade']).replace('.0', '')
+                    watch_items.append(
+                        f"Grade {grade_label} accounts for {int(row['Days_Lost'])} instructional days lost "
+                        f"({row['Days_Lost'] / avg_days_lost:.1f}x the grade average of {avg_days_lost:.0f} days) — "
+                        f"disproportionate loss relative to other grades regardless of removal rate"
+                    )
     
     if watch_items:
         for item in watch_items:
