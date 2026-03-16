@@ -1127,14 +1127,14 @@ if uploaded_files is not None and len(uploaded_files) > 0:
         # --- Date Range Filter ---
         st.markdown("---")
         st.subheader("📅 Filter by Date Range (Optional)")
-        min_date = df['Incident Date'].min().date()
-        max_date = df['Incident Date'].max().date()
+        min_date = df['Date'].min().date()
+        max_date = df['Date'].max().date()
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
         with col2:
             end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
-        df = df[(df['Incident Date'].dt.date >= start_date) & (df['Incident Date'].dt.date <= end_date)]
+        df = df[(df['Date'].dt.date >= start_date) & (df['Date'].dt.date <= end_date)]
         if len(df) == 0:
             st.error("No incidents found in the selected date range. Adjust the filter and try again.")
             st.stop()
