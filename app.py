@@ -1124,6 +1124,23 @@ if uploaded_files is not None and len(uploaded_files) > 0:
         with st.expander("📋 Preview Consolidated Data (first 10 rows)", expanded=False):
             st.dataframe(df.head(10), use_container_width=True)
         
+        # --- Date Range Filter ---
+        st.markdown("---")
+        st.subheader("📅 Filter by Date Range (Optional)")
+        min_date = df['Incident Date'].min().date()
+        max_date = df['Incident Date'].max().date()
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
+        with col2:
+            end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
+        df = df[(df['Incident Date'].dt.date >= start_date) & (df['Incident Date'].dt.date <= end_date)]
+        if len(df) == 0:
+            st.error("No incidents found in the selected date range. Adjust the filter and try again.")
+            st.stop()
+        st.caption(f"Analyzing {len(df):,} incidents from {start_date} to {end_date}")
+        st.markdown("---")
+
         # Validate period name is provided
         if not period_name or period_name.strip() == "":
             st.warning("⚠️ Please enter a Period Name above before generating reports")
