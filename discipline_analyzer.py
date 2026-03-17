@@ -961,14 +961,93 @@ ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
         count = posture_counts.get(posture, 0)
         report += f"- {posture}: {count} campus(es)\n"
     
-    report += f"\n**High-Priority Campuses:**\n"
-    watchlist = [(name, r) for name, r in campus_results.items() if r['posture'] in ['ESCALATE', 'INTERVENE']]
-    if watchlist:
-        for campus_name, result in sorted(watchlist, key=lambda x: x[1]['stats']['removal_pct'], reverse=True):
-            report += f"- {campus_name}: {result['posture']} — {result['stats']['removal_pct']:.1f}% removal rate\n"
+    # Campus detail table — all campuses
+    report += "\n**Campus Summary:**\n"
+    report += f"{'Campus':<40} {'Posture':<12} {'Removal%':<12} {'OSS%':<10} {'Incidents'}\n"
+    report += "─" * 80 + "\n"
+    for campus_name, result in sorted(campus_results.items(),
+                                      key=lambda x: x[1]['stats']['removal_pct'], reverse=True):
+        s = result['stats']
+        report += (f"{str(campus_name):<40} {result['posture']:<12} "
+                   f"{s['removal_pct']:.1f}%{'':>6} {s['OSS_pct']:.1f}%{'':>4} {s['total_incidents']}\n")
+
+    report += f"\n{'─'*80}\n\n"
+
+    # Schools of Focus — ESCALATE and INTERVENE only
+    focus_campuses = [(name, r) for name, r in campus_results.items()
+                      if r['posture'] in ['ESCALATE', 'INTERVENE']]
+    report += "## SCHOOLS OF FOCUS\n\n"
+    if focus_campuses:
+        for campus_name, result in sorted(focus_campuses,
+                                          key=lambda x: x[1]['stats']['removal_pct'], reverse=True):
+            s = result['stats']
+            df_c = result['df']
+            days_lost = result['impact'].get('total_days', 0) if result.get('impact') else 0
+
+            # Top risk grade by removal rate
+            grade_grp = df_c.groupby('Grade').agg(
+                total=('Response', 'count'),
+                removals=('Is_Removal', 'sum')
+            ).reset_index()
+            grade_grp['rate'] = grade_grp['removals'] / grade_grp['total'] * 100
+            top_grade = grade_grp.loc[grade_grp['rate'].idxmax(), 'Grade'] if len(grade_grp) > 0 else 'N/A'
+            top_grade_rate = grade_grp['rate'].max() if len(grade_grp) > 0 else 0
+
+            # Top behavior by volume
+            top_behavior = df_c['Incident_Type'].value_counts().index[0] if len(df_c) > 0 else 'N/A'
+
+            report += f"**{campus_name}** — {result['posture']}\n"
+            report += f"  Removal Rate: {s['removal_pct']:.1f}%  |  OSS: {s['OSS_pct']:.1f}%  |  Incidents: {s['total_incidents']}\n"
+            report += f"  Top Risk Grade: Grade {str(top_grade).replace('.0', '')} ({top_grade_rate:.1f}% removal rate)\n"
+            report += f"  Top Behavior: {top_behavior}\n"
+            report += f"  Instructional Days Lost: {days_lost:.1f}\n\n"
     else:
-        report += "- None requiring immediate attention\n"
-    
+        report += "No campuses currently at ESCALATE or INTERVENE posture.\n\n"
+
+    report += f"{'─'*80}\n\n"
+
+    # District-wide grade pressure
+    report += "## GRADE-LEVEL PRESSURE (DISTRICT-WIDE)\n\n"
+    district_grade = district_df.groupby('Grade').agg(
+        total=('Response', 'count'),
+        removals=('Is_Removal', 'sum')
+    ).reset_index()
+    district_grade['rate'] = (district_grade['removals'] / district_grade['total'] * 100).round(1)
+    district_grade['variance'] = district_grade['rate'] - district_stats['removal_pct']
+    district_grade = district_grade.sort_values('Grade',
+        key=lambda x: x.apply(lambda g: int(g) if str(g).replace('.0','').isdigit() else -1))
+    for _, row in district_grade.iterrows():
+        sign = "+" if row['variance'] >= 0 else ""
+        grade_label = str(row['Grade']).replace('.0', '')
+        report += f"- Grade {grade_label}: {row['rate']:.1f}% ({sign}{row['variance']:.1f}% vs district avg)\n"
+
+    report += f"\n{'─'*80}\n\n"
+
+    # District-wide Watch List
+    report += "## WATCH LIST (DISTRICT-WIDE)\n\n"
+    district_watch = []
+    if 'Days_Removed' in district_df.columns:
+        gd = district_df.groupby('Grade')['Days_Removed'].sum().reset_index()
+        gd.columns = ['Grade', 'Days_Lost']
+        gd = gd[gd['Days_Lost'] > 0]
+        if len(gd) > 1:
+            avg_dl = gd['Days_Lost'].mean()
+            for _, row in gd.iterrows():
+                if row['Days_Lost'] >= avg_dl * 1.5:
+                    gl = str(row['Grade']).replace('.0', '')
+                    district_watch.append(
+                        f"Grade {gl} accounts for {int(row['Days_Lost'])} instructional days lost "
+                        f"({row['Days_Lost']/avg_dl:.1f}x district grade average of {avg_dl:.0f} days)"
+                    )
+    for campus_name, result in campus_results.items():
+        if result['posture'] == 'ESCALATE':
+            district_watch.append(f"{campus_name} in ESCALATE posture — requires immediate district attention")
+    if district_watch:
+        for item in district_watch:
+            report += f"- {item}\n"
+    else:
+        report += "No patterns currently flagged for district-level monitoring.\n"
+
     report += f"\n{'─'*80}\n\n"
     
     # Top incident types (district-wide)
