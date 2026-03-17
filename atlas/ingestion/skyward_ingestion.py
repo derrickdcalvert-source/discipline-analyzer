@@ -178,6 +178,7 @@ def run_skyward_ingestion(uploaded_file, campus_name_fallback="Campus"):
     campus_identifier = campus_name_fallback
     if "Entity" in df.columns and df["Entity"].notna().any():
         campus_identifier = str(df["Entity"].dropna().unique()[0])
+        df["Campus"] = df["Entity"]  # normalize Entity → Campus for split logic
     elif "Campus" in df.columns and df["Campus"].notna().any():
         campus_identifier = str(df["Campus"].dropna().unique()[0])
 
