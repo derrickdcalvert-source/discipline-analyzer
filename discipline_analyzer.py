@@ -531,9 +531,22 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     grade_analysis = grade_analysis.sort_values('Grade', key=lambda x: x.apply(lambda g: int(g) if str(g).isdigit() else -1))
     
     brief += "**Removal Rate by Grade:**\n\n"
+    # Pre-compute top incident type per grade
+    grade_top_incident = (
+        df.groupby(['Grade', 'Incident_Type'])['Response']
+        .count()
+        .reset_index()
+        .sort_values('Response', ascending=False)
+        .groupby('Grade')
+        .first()
+        .reset_index()[['Grade', 'Incident_Type']]
+    )
+    top_incident_map = dict(zip(grade_top_incident['Grade'], grade_top_incident['Incident_Type']))
+
     for _, row in grade_analysis.iterrows():
         variance_sign = "+" if row['Variance'] >= 0 else ""
-        brief += f"- Grade {row['Grade']}: {row['Removal_Rate']:.1f}% ({variance_sign}{row['Variance']:.1f}% vs campus avg)\n"
+        top_incident = top_incident_map.get(row['Grade'], 'N/A')
+        brief += f"- Grade {row['Grade']}: {row['Removal_Rate']:.1f}% ({variance_sign}{row['Variance']:.1f}% vs campus avg) — Top behavior: {top_incident}\n"
     
     brief += "\n"
     brief += "─" * 80 + "\n\n"
