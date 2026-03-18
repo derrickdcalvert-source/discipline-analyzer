@@ -1086,9 +1086,13 @@ if uploaded_files is not None and len(uploaded_files) > 0:
         # Track rows before display
         total_rows_uploaded = len(df)
         all_campus_values = set(df['Campus'].dropna().unique()) if 'Campus' in df.columns else set()
-        
-        # STEP 3: Display detection results
-        
+
+        # Update mode based on campus detection
+        if len(all_campus_values) > 1:
+            mode = "MULTI-CAMPUS"
+        elif len(all_campus_values) == 1:
+            campus_identifier = list(all_campus_values)[0]
+
         # STEP 3: Display detection results
         if mode == "SINGLE-FILE":
             st.success(f"✅ **SINGLE-FILE MODE**: {len(df)} incidents loaded")
