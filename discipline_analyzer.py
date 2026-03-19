@@ -1051,9 +1051,21 @@ ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
                         f"Grade {gl} accounts for {int(row['Days_Lost'])} instructional days lost "
                         f"({row['Days_Lost']/avg_dl:.1f}x district grade average of {avg_dl:.0f} days)"
                     )
-    for campus_name, result in campus_results.items():
-        if result['posture'] == 'ESCALATE':
-            district_watch.append(f"{campus_name} in ESCALATE posture — requires immediate district attention")
+    escalate_campuses = [
+        (campus_name, result['stats']['removal_pct'])
+        for campus_name, result in campus_results.items()
+        if result['posture'] == 'ESCALATE'
+    ]
+    escalate_campuses.sort(key=lambda x: x[1], reverse=True)
+    total_escalate = len(escalate_campuses)
+    for campus_name, removal_pct in escalate_campuses[:5]:
+        district_watch.append(
+            f"{campus_name} in ESCALATE posture — {removal_pct:.1f}% removal rate"
+        )
+    if total_escalate > 5:
+        district_watch.append(
+            f"({total_escalate - 5} additional ESCALATE campus(es) not shown — see Campus Summary above)"
+        )
     if district_watch:
         for item in district_watch:
             report += f"- {item}\n"
