@@ -1079,7 +1079,7 @@ ATLAS DISCIPLINE INTELLIGENCE — DISTRICT CONSOLIDATED REPORT
     report += "## TOP INCIDENT TYPES (DISTRICT-WIDE)\n\n**Top 3 by Volume:**\n"
     for incident_type, count in incident_counts.items():
         incidents_of_type = district_df[district_df['Incident_Type'] == incident_type]
-        removals = incidents_of_type[incidents_of_type['Response'].isin(['ISS', 'OSS', 'DAEP', 'JJAEP', 'Expulsion'])].shape[0]
+        removals = incidents_of_type[incidents_of_type['TEA_Group'].isin(['ISS', 'OSS', 'DAEP', 'JJAEP', 'EXPULSION'])].shape[0]
         removal_rate = (removals / count * 100) if count > 0 else 0
         report += f"- {incident_type}: {count} incidents, {removal_rate:.1f}% removal rate\n"
     
