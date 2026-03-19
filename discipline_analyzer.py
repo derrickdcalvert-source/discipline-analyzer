@@ -734,7 +734,19 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     for _, row in location_analysis.head(3).iterrows():
         if row['Removal_Rate'] > stats['removal_pct'] * 1.2:
             watch_items.append(f"{row['Location']} converting to removal at {row['Removal_Rate']:.1f}% (above campus avg)")
-
+    # Surface breached ESCALATE thresholds explicitly
+    if stats['removal_pct'] >= 60:
+        watch_items.append(
+            f"Overall removal rate at {stats['removal_pct']:.1f}% — ESCALATE threshold (60%) exceeded"
+        )
+    if stats['OSS_pct'] >= 20:
+        watch_items.append(
+            f"OSS rate at {stats['OSS_pct']:.1f}% — ESCALATE threshold (20%) exceeded"
+        )
+    if stats['Expulsion'] > 0:
+        watch_items.append(
+            f"{stats['Expulsion']} expulsion(s) recorded — ESCALATE condition present"
+        )
     # Check for grades with disproportionate instructional days lost (1.5x grade average)
     if 'Days_Removed' in df.columns:
         grade_days = df.groupby('Grade')['Days_Removed'].sum().reset_index()
