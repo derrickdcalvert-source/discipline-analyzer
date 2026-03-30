@@ -688,7 +688,7 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
             continue
         
         # Section headers (all caps, long)
-        if line.isupper() and len(line) > 10:
+        if line.isupper() and len(line) > 10 and not line.startswith("-"):
             # Flush previous section
             if current_section:
                 for content_line in current_section:
@@ -806,7 +806,7 @@ def generate_district_tea_pdf(district_report_text, uploaded_filename, period_na
             continue
         
         # Section headers
-        if line.isupper() and len(line) > 10:
+        if line.isupper() and len(line) > 10 and not line.startswith("-"):
             # Flush previous section
             if current_section:
                 for content_line in current_section:
