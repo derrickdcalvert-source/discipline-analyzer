@@ -471,34 +471,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 3: INSTRUCTIONAL IMPACT (MOVED FROM SECTION 10)
-    # ========================================================================
-    
-    brief += "## INSTRUCTIONAL IMPACT\n\n"
-    
-    if impact['suppressed']:
-        brief += f"*Section suppressed: {impact['reason']}*\n\n"
-    else:
-        
-        # Sort by grade and display in table format
-        for grade in sorted(impact['grade_distribution'].keys(), key=lambda x: int(x) if str(x).isdigit() else -1):
-            data = impact['grade_distribution'][grade]
-            days = data['Days_Removed']
-            minutes = data['Minutes_Lost']
-            brief += "Grade " + str(grade).replace(".0", "") + f": {int(minutes):>6,} minutes ({days:>5.1f} days)\n"
-        
-        brief += "─" * 40 + "\n"
-        brief += f"TOTAL:    {impact['total_minutes']:>6,} minutes ({impact['total_days']:>5.1f} days)\n"
-        brief += "\n"
-        
-        # STAAR & Accountability Context (UPDATED WITH CHRONIC ABSENTEEISM)
-        brief += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n\n"
-        brief += "Under Texas accountability, students removed from instruction for 10% or more of enrolled days meet the chronic absenteeism threshold. Disciplinary removals count toward this metric and affect campus ratings in the Academic Achievement domain.\n\n"
-    
-    brief += "─" * 80 + "\n\n"
-    
-    # ========================================================================
-    # SECTION 4: RESPONSE / REMOVAL SNAPSHOT
+    # SECTION 3: RESPONSE / REMOVAL SNAPSHOT
     # ========================================================================
     
     brief += "## RESPONSE / REMOVAL SNAPSHOT\n\n"
@@ -517,7 +490,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 5: GRADE-LEVEL PRESSURE ANALYSIS
+    # SECTION 4: GRADE-LEVEL PRESSURE ANALYSIS
     # ========================================================================
     
     brief += "## GRADE-LEVEL PRESSURE ANALYSIS\n\n"
@@ -552,7 +525,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 6: TOP INCIDENT TYPES
+    # SECTION 5: TOP INCIDENT TYPES
     # ========================================================================
     
     brief += "## TOP INCIDENT TYPES\n\n"
@@ -572,7 +545,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 7: LOCATION HOTSPOTS
+    # SECTION 6: LOCATION HOTSPOTS
     # ========================================================================
     
     brief += "## LOCATION HOTSPOTS\n\n"
@@ -619,7 +592,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 8: TIME BLOCK PATTERNS
+    # SECTION 7: TIME BLOCK PATTERNS
     # ========================================================================
     
     brief += "## TIME BLOCK PATTERNS\n\n"
@@ -639,7 +612,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 9: BEHAVIORAL PRESSURE SIGNAL
+    # SECTION 8: BEHAVIORAL PRESSURE SIGNAL
     # ========================================================================
     
     brief += "## BEHAVIORAL PRESSURE SIGNAL\n\n"
@@ -656,7 +629,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     brief += "─" * 80 + "\n\n"
     
     # ========================================================================
-    # SECTION 10: TOP RISK
+    # SECTION 9: TOP RISK
     # ========================================================================
     
     brief += "## TOP RISK (URGENT ATTENTION)\n\n"
@@ -676,6 +649,33 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += f"**Where leadership attention must go:** Active monitoring of {top_removal_incident['Incident_Type']} incidents. Prevent escalation through early intervention.\n\n"
     else:
         brief += "**Current assessment:** No immediate crisis indicators. System operating within normal parameters. Continue routine monitoring.\n\n"
+    
+    brief += "─" * 80 + "\n\n"
+    
+    # ========================================================================
+    # SECTION 10: INSTRUCTIONAL IMPACT
+    # ========================================================================
+    
+    brief += "## INSTRUCTIONAL IMPACT\n\n"
+    
+    if impact['suppressed']:
+        brief += f"*Section suppressed: {impact['reason']}*\n\n"
+    else:
+        
+        # Sort by grade and display in table format
+        for grade in sorted(impact['grade_distribution'].keys(), key=lambda x: int(x) if str(x).isdigit() else -1):
+            data = impact['grade_distribution'][grade]
+            days = data['Days_Removed']
+            minutes = data['Minutes_Lost']
+            brief += "Grade " + str(grade).replace(".0", "") + f": {int(minutes):>6,} minutes ({days:>5.1f} days)\n"
+        
+        brief += "─" * 40 + "\n"
+        brief += f"TOTAL:    {impact['total_minutes']:>6,} minutes ({impact['total_days']:>5.1f} days)\n"
+        brief += "\n"
+        
+        # STAAR & Accountability Context (UPDATED WITH CHRONIC ABSENTEEISM)
+        brief += "Sustained instructional loss at this magnitude is associated in Texas accountability research with lower STAAR performance, particularly when loss exceeds multiple weeks at the grade level.\n\n"
+        brief += "Under Texas accountability, students removed from instruction for 10% or more of enrolled days meet the chronic absenteeism threshold. Disciplinary removals count toward this metric and affect campus ratings in the Academic Achievement domain.\n\n"
     
     brief += "─" * 80 + "\n\n"
     
