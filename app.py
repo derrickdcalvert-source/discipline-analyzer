@@ -722,7 +722,7 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
             # Regular content
             if 'Decision Posture:' in line or 'Overall System State:' in line:
                 story.append(Paragraph(f"<b>{line}</b>", body_style))
-            elif any(keyword in line for keyword in ['Total Incidents:', 'minutes', 'days', 'STABLE', 'CALIBRATE', 'INTERVENE', 'ESCALATE']):
+            elif any(keyword in line for keyword in ['Total Incidents:', 'Total Removals:']):
                 story.append(Paragraph(f"<b>{line}</b>", body_style))
             else:
                 current_section.append(line)
