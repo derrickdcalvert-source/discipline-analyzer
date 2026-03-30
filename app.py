@@ -641,20 +641,20 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     impact_chart_img = fig_to_reportlab_image(impact_chart_fig, width=6*inch) if impact_chart_fig else None
     # Posture icons
     posture_icons = {
-        'STABLE': '✓',
-        'CALIBRATE': '⚠',
-        'INTERVENE': '⚡',
-        'ESCALATE': '🚨'
+        'STABLE': 'STABLE',
+        'CALIBRATE': 'CALIBRATE',
+        'INTERVENE': 'INTERVENE',
+        'ESCALATE': 'ESCALATE'
     }
     icon = posture_icons.get(posture, '•')
     
     # Header
-    story.append(Paragraph("📊 Discipline Decision Brief", title_style))
+    story.append(Paragraph("Discipline Decision Brief", title_style))
     story.append(Paragraph(f"School Brief — {period_name}", subtitle_style))
     story.append(Spacer(1, 0.2*inch))
     
     # Posture callout box
-    posture_data = [[f"{icon} Decision Posture: {posture}"]]
+    posture_data = [[f"Decision Posture: {posture}"]]
     posture_table = Table(posture_data, colWidths=[6.5*inch])
     posture_color = {
         'STABLE': colors.HexColor('#d1fae5'),
@@ -916,7 +916,7 @@ def generate_district_consolidated_report_pdf(district_report_text, period_name,
     # Header
     
     # Header
-    story.append(Paragraph("📊 District Consolidated Report", title_style))
+    story.append(Paragraph("District Consolidated Report", title_style))
     story.append(Paragraph(f"Multi-Campus Analysis — {period_name}", subtitle_style))
     story.append(Spacer(1, 0.3*inch))
     

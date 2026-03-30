@@ -434,9 +434,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
     
     # Start building the brief
     brief = ""
-    brief += "=" * 80 + "\n"
-    brief += "ATLAS DISCIPLINE INTELLIGENCE — SCHOOL CAMPUS DECISION BRIEF\n"
-    brief += "=" * 80 + "\n\n"
+
     
     # ========================================================================
     # SECTION 1: HEADER
@@ -813,9 +811,7 @@ def generate_school_brief(df, campus_name="School Campus", state_mode="TEXAS_TEA
         brief += f"System stable at {stats['removal_pct']:.1f}% removal rate. "
         brief += f"Continue routine monitoring. No immediate action required.\n\n"
     
-    brief += "=" * 80 + "\n"
-    brief += "END OF SCHOOL CAMPUS DECISION BRIEF\n"
-    brief += "=" * 80 + "\n"
+
     
     return brief
 
