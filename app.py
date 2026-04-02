@@ -648,45 +648,157 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     }
     icon = posture_icons.get(posture, '•')
     
-    # Header
-    story.append(Paragraph("Discipline Decision Brief", title_style))
-    story.append(Paragraph(f"School Brief — {period_name}", subtitle_style))
-    story.append(Spacer(1, 0.2*inch))
-    
-    # Posture callout box
-    posture_data = [[f"Decision Posture: {posture}"]]
-    posture_table = Table(posture_data, colWidths=[6.5*inch])
-    posture_color = {
-        'STABLE': colors.HexColor('#d1fae5'),
+    # --- HEADER BLOCK ---
+    from datetime import datetime
+
+    def _fmt_date(raw):
+        raw = raw.strip()
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(raw, fmt).strftime('%B %-d, %Y')
+            except ValueError:
+                continue
+        return raw
+
+    def _fmt_date_range(raw):
+        if ' to ' in raw:
+            start, end = raw.split(' to ', 1)
+            return f"{_fmt_date(start)} \u2013 {_fmt_date(end)}"
+        return raw
+
+    def _extract_meta(text, key):
+        for line in text.split('\n')[:25]:
+            clean = line.strip().replace("**", "").replace("*", "")
+            if clean.startswith(key + ':'):
+                return clean.split(':', 1)[1].strip()
+        return ''
+
+    STATE_MODE_LABELS = {
+        'TEXAS_TEA': 'Texas \u2014 TEA',
+        'TEXAS': 'Texas',
+    }
+
+    campus_display = _extract_meta(school_brief_text, 'Campus') or uploaded_filename
+    date_range_display = _fmt_date_range(_extract_meta(school_brief_text, 'Date Range'))
+    state_display = STATE_MODE_LABELS.get(
+        _extract_meta(school_brief_text, 'State Mode'),
+        _extract_meta(school_brief_text, 'State Mode')
+    )
+    rows_display = _extract_meta(school_brief_text, 'Rows Analyzed')
+
+    # Brand line
+    brand_style = ParagraphStyle(
+        'Brand',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        alignment=TA_CENTER,
+        spaceAfter=4
+    )
+    story.append(Paragraph("ATLAS DISCIPLINE INTELLIGENCE", brand_style))
+
+    # Title
+    story.append(Paragraph("School Campus Decision Brief", title_style))
+    story.append(Paragraph(f"{campus_display}&nbsp;&nbsp;·&nbsp;&nbsp;{period_name}", subtitle_style))
+    story.append(Spacer(1, 0.15*inch))
+
+    # Posture callout — color-coded by severity
+    posture_bg = {
+        'STABLE':    colors.HexColor('#d1fae5'),
         'CALIBRATE': colors.HexColor('#fef3c7'),
         'INTERVENE': colors.HexColor('#fed7aa'),
-        'ESCALATE': colors.HexColor('#fecaca')
+        'ESCALATE':  colors.HexColor('#dc2626'),
     }.get(posture, colors.HexColor('#f3f4f6'))
-    
+
+    posture_text_color = (
+        colors.white if posture == 'ESCALATE'
+        else colors.HexColor('#1f2937')
+    )
+
+    posture_table = Table(
+        [[f"DECISION POSTURE: {posture}"]],
+        colWidths=[6.5*inch]
+    )
     posture_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), posture_color),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 14),
-        ('TOPPADDING', (0, 0), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('BACKGROUND',    (0, 0), (-1, -1), posture_bg),
+        ('TEXTCOLOR',     (0, 0), (-1, -1), posture_text_color),
+        ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME',      (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 16),
+        ('TOPPADDING',    (0, 0), (-1, -1), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 14),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 12),
     ]))
     story.append(posture_table)
+    story.append(Spacer(1, 0.2*inch))
+
+    # Metadata row
+    meta_label = ParagraphStyle(
+        'MetaLabel', parent=styles['Normal'],
+        fontSize=8, textColor=colors.HexColor('#6b7280'),
+        spaceAfter=2, alignment=TA_CENTER
+    )
+    meta_value = ParagraphStyle(
+        'MetaValue', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#1f2937'),
+        fontName='Helvetica-Bold', spaceAfter=0, alignment=TA_CENTER
+    )
+
+    meta_table = Table([
+        [
+            Paragraph('CAMPUS', meta_label),
+            Paragraph('DATE RANGE', meta_label),
+            Paragraph('STATE', meta_label),
+            Paragraph('RECORDS', meta_label),
+        ],
+        [
+            Paragraph(campus_display, meta_value),
+            Paragraph(date_range_display, meta_value),
+            Paragraph(state_display, meta_value),
+            Paragraph(rows_display, meta_value),
+        ],
+    ], colWidths=[2.0*inch, 2.5*inch, 1.25*inch, 0.75*inch])
+
+    meta_table.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), colors.HexColor('#f9fafb')),
+        ('BOX',           (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('LINEBELOW',     (0, 0), (-1, 0),  0.5, colors.HexColor('#e5e7eb')),
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(meta_table)
     story.append(Spacer(1, 0.3*inch))
     
     # Parse report sections
     lines = school_brief_text.split('\n')
     current_section = []
     
+    # Lines already handled in the header block
+    HEADER_SKIP = (
+        'Discipline Decision Brief',
+        'School Brief',
+        'Decision Posture:',
+        'Overall System State:',
+        'Campus:',
+        'Date Range:',
+        'State Mode:',
+        'Data Hash:',
+        'Rows Analyzed:',
+        'Generated:',
+        'ATLAS DISCIPLINE INTELLIGENCE',
+    )
+
     for line in lines:
         line = line.strip()
         line = line.replace("**", "").replace("## ", "")
         if not line or '═' in line or '─' in line:
             continue
-        
+        if any(line.startswith(prefix) for prefix in HEADER_SKIP):
+            continue
         # Section headers (all caps, long)
         if line.isupper() and len(line) > 10 and not line.startswith("-"):
             # Flush previous section
