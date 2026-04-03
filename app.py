@@ -686,11 +686,18 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     _bl = school_brief_text.split('\n')
     for _i,_line in enumerate(_bl):
         if 'leadership interpretation' in _line.lower().replace('**',''):
+            _clean_line = _line.strip().replace('**','').replace('*','')
+            if ':' in _clean_line:
+                _after = _clean_line.split(':',1)[1].strip()
+                if _after:
+                    _leadership_interp = _after; break
             for _j in range(_i+1, min(_i+6,len(_bl))):
                 _c = _bl[_j].strip().replace('**','').replace('*','')
                 if _c and not _c.startswith('=') and not _c.startswith('-'):
                     _leadership_interp = _c; break
             break
+    import re as _re
+    _leadership_interp = _re.sub(r'[^\x00-\x7F]', '', _leadership_interp).strip()
     _posture_bg = {'STABLE':colors.HexColor('#d1fae5'),'CALIBRATE':colors.HexColor('#fef3c7'),'INTERVENE':colors.HexColor('#fed7aa'),'ESCALATE':colors.HexColor('#fee2e2')}.get(posture,colors.HexColor('#f3f4f6'))
     _posture_tc = {'STABLE':colors.HexColor('#065f46'),'CALIBRATE':colors.HexColor('#92400e'),'INTERVENE':colors.HexColor('#9a3412'),'ESCALATE':colors.HexColor('#dc2626')}.get(posture,colors.HexColor('#1f2937'))
     _ss_label   = {'STABLE':'Stable','CALIBRATE':'Calibrating','INTERVENE':'Intervening','ESCALATE':'Escalating'}.get(posture, posture.title())
@@ -699,9 +706,9 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     _pill_tables = []
     for _pt in [date_range_display, grades_display, incidents_display, f"{rows_display} records"]:
         _t = Table([[Paragraph(_pt,_pil_style)]])
-        _t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#d1d5db')),('BACKGROUND',(0,0),(-1,-1),colors.white),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8)]))
+        _t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#d1d5db')),('BACKGROUND',(0,0),(-1,-1),colors.white),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5)]))
         _pill_tables.append(_t)
-    _pills_row = Table([_pill_tables],colWidths=[1.55*inch,0.72*inch,0.65*inch,0.58*inch])
+    _pills_row = Table([_pill_tables],colWidths=[1.9*inch,0.75*inch,0.65*inch,0.7*inch])
     _pills_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('LEFTPADDING',(0,0),(-1,-1),2),('RIGHTPADDING',(0,0),(-1,-1),2),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
     _hdr = Table([[Paragraph(campus_display,_cnm_style),_pills_row]],colWidths=[3.0*inch,3.5*inch])
     _hdr.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,0),'RIGHT'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
