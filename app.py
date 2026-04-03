@@ -14,6 +14,8 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 # Import the analyzer functions
 sys.path.append('/Users/derrickcalvert/Desktop')
@@ -650,7 +652,6 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
     
     # --- HEADER BLOCK ---
     from datetime import datetime
-
     def _fmt_date(raw):
         raw = raw.strip()
         for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
@@ -659,120 +660,70 @@ def generate_school_brief_pdf(school_brief_text, uploaded_filename, period_name,
             except ValueError:
                 continue
         return raw
-
     def _fmt_date_range(raw):
         if ' to ' in raw:
             start, end = raw.split(' to ', 1)
-            return f"{_fmt_date(start)} \u2013 {_fmt_date(end)}"
+            return f"{_fmt_date(start)} – {_fmt_date(end)}"
         return raw
-
     def _extract_meta(text, key):
         for line in text.split('\n')[:25]:
-            clean = line.strip().replace("**", "").replace("*", "")
+            clean = line.strip().replace("**","").replace("*","")
             if clean.startswith(key + ':'):
-                return clean.split(':', 1)[1].strip()
+                return clean.split(':',1)[1].strip()
         return ''
-
-    STATE_MODE_LABELS = {
-        'TEXAS_TEA': 'Texas \u2014 TEA',
-        'TEXAS': 'Texas',
-    }
-
-    campus_display = _extract_meta(school_brief_text, 'Campus') or uploaded_filename
+    STATE_MODE_LABELS = {'TEXAS_TEA': 'Texas — TEA', 'TEXAS': 'Texas'}
+    campus_display     = _extract_meta(school_brief_text, 'Campus') or uploaded_filename
     date_range_display = _fmt_date_range(_extract_meta(school_brief_text, 'Date Range'))
-    state_display = STATE_MODE_LABELS.get(
-        _extract_meta(school_brief_text, 'State Mode'),
-        _extract_meta(school_brief_text, 'State Mode')
-    )
-    rows_display = _extract_meta(school_brief_text, 'Rows Analyzed')
+    state_display      = STATE_MODE_LABELS.get(_extract_meta(school_brief_text, 'State Mode'), _extract_meta(school_brief_text, 'State Mode'))
+    rows_display       = _extract_meta(school_brief_text, 'Rows Analyzed')
+    try:
+        _grades = sorted([int(float(g)) for g in df['Grade'].dropna().unique()])
+        grades_display = f"Grades {_grades[0]}–{_grades[-1]}" if len(_grades)>1 else (f"Grade {_grades[0]}" if _grades else "All Grades")
+    except Exception:
+        grades_display = "All Grades"
+    incidents_display = f"{len(df)} incidents"
+    _leadership_interp = ''
+    _bl = school_brief_text.split('\n')
+    for _i,_line in enumerate(_bl):
+        if 'leadership interpretation' in _line.lower().replace('**',''):
+            for _j in range(_i+1, min(_i+6,len(_bl))):
+                _c = _bl[_j].strip().replace('**','').replace('*','')
+                if _c and not _c.startswith('=') and not _c.startswith('-'):
+                    _leadership_interp = _c; break
+            break
+    _posture_bg = {'STABLE':colors.HexColor('#d1fae5'),'CALIBRATE':colors.HexColor('#fef3c7'),'INTERVENE':colors.HexColor('#fed7aa'),'ESCALATE':colors.HexColor('#fee2e2')}.get(posture,colors.HexColor('#f3f4f6'))
+    _posture_tc = {'STABLE':colors.HexColor('#065f46'),'CALIBRATE':colors.HexColor('#92400e'),'INTERVENE':colors.HexColor('#9a3412'),'ESCALATE':colors.HexColor('#dc2626')}.get(posture,colors.HexColor('#1f2937'))
+    _ss_label   = {'STABLE':'Stable','CALIBRATE':'Calibrating','INTERVENE':'Intervening','ESCALATE':'Escalating'}.get(posture, posture.title())
+    _cnm_style = ParagraphStyle('CampusNm',parent=styles['Normal'],fontSize=20,fontName='Helvetica-Bold',textColor=colors.HexColor('#1f2937'),leading=24)
+    _pil_style = ParagraphStyle('PillTxt',parent=styles['Normal'],fontSize=8,textColor=colors.HexColor('#374151'),alignment=TA_CENTER,leading=10)
+    _pill_tables = []
+    for _pt in [date_range_display, grades_display, incidents_display, f"{rows_display} records"]:
+        _t = Table([[Paragraph(_pt,_pil_style)]])
+        _t.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#d1d5db')),('BACKGROUND',(0,0),(-1,-1),colors.white),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8)]))
+        _pill_tables.append(_t)
+    _pills_row = Table([_pill_tables],colWidths=[1.55*inch,0.72*inch,0.65*inch,0.58*inch])
+    _pills_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),('LEFTPADDING',(0,0),(-1,-1),2),('RIGHTPADDING',(0,0),(-1,-1),2),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+    _hdr = Table([[Paragraph(campus_display,_cnm_style),_pills_row]],colWidths=[3.0*inch,3.5*inch])
+    _hdr.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,0),'RIGHT'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+    story.append(_hdr)
+    story.append(Spacer(1,0.15*inch))
+    _plbl = ParagraphStyle('PlblS',parent=styles['Normal'],fontSize=7,fontName='Helvetica-Bold',textColor=colors.HexColor('#6b7280'),spaceAfter=5,leading=9)
+    _ssv  = ParagraphStyle('SSvS', parent=styles['Normal'],fontSize=13,fontName='Helvetica-Bold',textColor=_posture_tc,leading=16)
+    _pv   = ParagraphStyle('PvS',  parent=styles['Normal'],fontSize=17,fontName='Helvetica-Bold',textColor=_posture_tc,leading=21)
+    _iv   = ParagraphStyle('IvS',  parent=styles['Normal'],fontSize=9,textColor=colors.HexColor('#374151'),leading=12)
+    _ssbadge = Table([[Paragraph(_ss_label,_ssv)]])
+    _ssbadge.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),_posture_bg),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10)]))
+    _p1 = Table([[Paragraph('SYSTEM STATE',_plbl)],[_ssbadge]])
+    _p1.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+    _p2 = Table([[Paragraph('DECISION POSTURE',_plbl)],[Paragraph(posture,_pv)]])
+    _p2.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+    _p3 = Table([[Paragraph('LEADERSHIP INTERPRETATION',_plbl)],[Paragraph(_leadership_interp or 'See full report.',_iv)]])
+    _p3.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'TOP')]))
+    _panels = Table([[_p1,_p2,_p3]],colWidths=[2.0*inch,2.0*inch,2.5*inch])
+    _panels.setStyle(TableStyle([('BOX',(0,0),(0,0),0.5,colors.HexColor('#e5e7eb')),('BOX',(1,0),(1,0),0.5,colors.HexColor('#e5e7eb')),('BOX',(2,0),(2,0),0.5,colors.HexColor('#e5e7eb')),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f9fafb')),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('VALIGN',(0,0),(-1,-1),'TOP')]))
+    story.append(_panels)
+    story.append(Spacer(1,0.25*inch))
 
-    # Brand line
-    brand_style = ParagraphStyle(
-        'Brand',
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.HexColor('#9ca3af'),
-        alignment=TA_CENTER,
-        spaceAfter=4
-    )
-    story.append(Paragraph("ATLAS DISCIPLINE INTELLIGENCE", brand_style))
-
-    # Title
-    story.append(Paragraph("School Campus Decision Brief", title_style))
-    story.append(Paragraph(f"{campus_display}&nbsp;&nbsp;·&nbsp;&nbsp;{period_name}", subtitle_style))
-    story.append(Spacer(1, 0.15*inch))
-
-    # Posture callout — color-coded by severity
-    posture_bg = {
-        'STABLE':    colors.HexColor('#d1fae5'),
-        'CALIBRATE': colors.HexColor('#fef3c7'),
-        'INTERVENE': colors.HexColor('#fed7aa'),
-        'ESCALATE':  colors.HexColor('#dc2626'),
-    }.get(posture, colors.HexColor('#f3f4f6'))
-
-    posture_text_color = (
-        colors.white if posture == 'ESCALATE'
-        else colors.HexColor('#1f2937')
-    )
-
-    posture_table = Table(
-        [[f"DECISION POSTURE: {posture}"]],
-        colWidths=[6.5*inch]
-    )
-    posture_table.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, -1), posture_bg),
-        ('TEXTCOLOR',     (0, 0), (-1, -1), posture_text_color),
-        ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME',      (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 16),
-        ('TOPPADDING',    (0, 0), (-1, -1), 14),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 14),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 12),
-    ]))
-    story.append(posture_table)
-    story.append(Spacer(1, 0.2*inch))
-
-    # Metadata row
-    meta_label = ParagraphStyle(
-        'MetaLabel', parent=styles['Normal'],
-        fontSize=8, textColor=colors.HexColor('#6b7280'),
-        spaceAfter=2, alignment=TA_CENTER
-    )
-    meta_value = ParagraphStyle(
-        'MetaValue', parent=styles['Normal'],
-        fontSize=10, textColor=colors.HexColor('#1f2937'),
-        fontName='Helvetica-Bold', spaceAfter=0, alignment=TA_CENTER
-    )
-
-    meta_table = Table([
-        [
-            Paragraph('CAMPUS', meta_label),
-            Paragraph('DATE RANGE', meta_label),
-            Paragraph('STATE', meta_label),
-            Paragraph('RECORDS', meta_label),
-        ],
-        [
-            Paragraph(campus_display, meta_value),
-            Paragraph(date_range_display, meta_value),
-            Paragraph(state_display, meta_value),
-            Paragraph(rows_display, meta_value),
-        ],
-    ], colWidths=[2.0*inch, 2.5*inch, 1.25*inch, 0.75*inch])
-
-    meta_table.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, -1), colors.HexColor('#f9fafb')),
-        ('BOX',           (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-        ('LINEBELOW',     (0, 0), (-1, 0),  0.5, colors.HexColor('#e5e7eb')),
-        ('TOPPADDING',    (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(meta_table)
-    story.append(Spacer(1, 0.3*inch))
-    
     # Parse report sections
     lines = school_brief_text.split('\n')
     current_section = []
