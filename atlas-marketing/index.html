@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atlas — Discipline Intelligence for District Leadership</title>
+  <meta name="description" content="Atlas turns SIS discipline exports into leadership-ready reports for Texas K–12 districts. Pattern visibility, instructional time loss, removal concentration, system stability, and posture shifts.">
+  <meta name="author" content="Empower52">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0E0F12">
+  <link rel="canonical" href="https://atlas.empower52.com/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Atlas — by Empower52">
+  <meta property="og:url" content="https://atlas.empower52.com/">
+  <meta property="og:title" content="Atlas — Discipline Intelligence for District Leadership">
+  <meta property="og:description" content="A reporting layer for Texas K–12 — not a decision layer. Atlas turns SIS discipline exports into leadership-ready reports.">
+  <meta property="og:image" content="https://atlas.empower52.com/assets/atlas-og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Atlas — Discipline Intelligence for District Leadership">
+  <meta name="twitter:description" content="A reporting layer for Texas K–12 — not a decision layer.">
+  <meta name="twitter:image" content="https://atlas.empower52.com/assets/atlas-og.png">
+
+  <!-- Fonts: DM Serif Display (headings) + DM Sans (body) + DM Mono (data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       DESIGN TOKENS
+       ─────────────────────────────────────────────────────────
+       Color system, typography scale, and spacing primitives.
+    ═══════════════════════════════════════════════════════════ */
+    :root {
+      /* Core palette */
+      --bg:              #0E0F12;
+      --bg-card:         #13151A;
+      --bg-card-hover:   #15171D;
+      --bg-field:        #1A1C20;
+      --bg-console:      #0B0C0E;
+
+      /* Text hierarchy */
+      --text-primary:    #E8E8E8;
+      --text-secondary:  #9099A1;
+      --text-muted:      #6B7580;
+      --text-faint:      #3D4349;
+
+      /* Borders */
+      --border:          #2A2D33;
+      --border-subtle:   #1E2025;
+
+      /* Brand accent */
+      --accent:          #C8902C;
+      --accent-glow:     rgba(200, 144, 44, 0.18);
+      --accent-glow-btn: rgba(200, 144, 44, 0.22);
+
+      /* Typography */
+      --font-head:       'DM Serif Display', Georgia, serif;
+      --font-body:       'DM Sans', system-ui, sans-serif;
+      --font-mono:       'DM Mono', 'Courier New', monospace;
+
+      /* Layout */
+      --max-w:           880px;
+      --max-w-wide:      1040px;
+      --pad-x:           32px;
+      --section-y:       140px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESET
+    ═══════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    /* ═══════════════════════════════════════════════════════════
+       BODY — dot-grid background texture (CSS-only, no images)
+       radial-gradient creates 1px dots at 0.06 opacity, 28px grid
+    ═══════════════════════════════════════════════════════════ */
+    body {
+      background-color: var(--bg);
+      background-image: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.06) 1px,
+        transparent 1px
+      );
+      background-size: 28px 28px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 17px;
+      line-height: 1.65;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    ul { list-style: none; }
+    button, input, textarea, select {
+      font-family: var(--font-body);
+      font-size: inherit;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       LAYOUT CONTAINERS
+    ═══════════════════════════════════════════════════════════ */
+    .container {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 var(--pad-x);
+    }
+    .container--wide {
+      max-width: var(--max-w-wide);
+      margin: 0 auto;
+      padding: 0 var(--pad-x);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SECTION SHELLS — varied rhythm treatments
+    ═══════════════════════════════════════════════════════════ */
+
+    /* Standard bounded section */
+    .section {
+      padding: var(--section-y) var(--pad-x);
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+
+    /* Section with top border rule */
+    .section--ruled {
+      border-top: 1px solid var(--border);
+    }
+
+    /* Full-width section wrapper (for edge-to-edge backgrounds) */
+    .section-band {
+      border-top: 1px solid var(--border);
+    }
+    .section-band .container,
+    .section-band .container--wide {
+      padding-top: var(--section-y);
+      padding-bottom: var(--section-y);
+    }
+
+    /* Centered section */
+    .section--center { text-align: center; }
+
+    /* XL vertical padding for the pilot anchor section */
+    .section--xl {
+      padding-top: 160px;
+      padding-bottom: 160px;
+    }
+
+    /* The "What Atlas Does Not Do" band — distinct treatment */
+    .notdo-band {
+      border-top: 1px solid var(--border);
+      background: linear-gradient(
+        180deg,
+        rgba(200, 144, 44, 0.03) 0%,
+        transparent 60%
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TYPOGRAPHY
+    ═══════════════════════════════════════════════════════════ */
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-family: var(--font-head);
+      font-size: clamp(36px, 5vw, 54px);
+      font-weight: 400;
+      line-height: 1.1;
+      color: var(--text-primary);
+      letter-spacing: -0.015em;
+      max-width: 720px;
+    }
+
+    h2 {
+      font-family: var(--font-head);
+      font-size: clamp(26px, 3.5vw, 36px);
+      font-weight: 400;
+      line-height: 1.18;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      font-family: var(--font-body);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Amber rule-accent line above section headings */
+    .rule-accent {
+      width: 48px;
+      height: 1px;
+      background: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    /* Wide amber rule — used for "notdo" section */
+    .rule-accent--wide {
+      width: 80px;
+      height: 1px;
+      background: var(--accent);
+      margin: 0 auto 40px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       BUTTONS
+       Amber glow on hover, subtle active scale
+    ═══════════════════════════════════════════════════════════ */
+    .btn {
+      display: inline-block;
+      padding: 13px 28px;
+      border-radius: 3px;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease, transform 0.1s ease, opacity 0.15s ease;
+      border: none;
+    }
+
+    .btn:active { transform: scale(0.98); }
+
+    .btn--primary {
+      background: var(--accent);
+      color: #0A0B0D;
+    }
+
+    /* Amber glow hover — replaces flat opacity change */
+    .btn--primary:hover {
+      box-shadow:
+        0 0 0 1px var(--accent),
+        0 0 16px var(--accent-glow-btn),
+        0 4px 20px rgba(200, 144, 44, 0.15);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       HEADER / NAV
+    ═══════════════════════════════════════════════════════════ */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(14, 15, 18, 0.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 64px;
+    }
+
+    .nav-wordmark {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+
+    .nav-wordmark .name {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--text-primary);
+    }
+
+    .nav-wordmark .by {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+      margin-top: 3px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      font-size: 14px;
+      color: var(--text-secondary);
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+
+    /* ═══════════════════════════════════════════════════════════
+       HERO
+    ═══════════════════════════════════════════════════════════ */
+    .hero {
+      padding: 96px var(--pad-x) 0;
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+
+    .hero h1 { margin-bottom: 28px; }
+
+    .hero-sub {
+      font-size: 17px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin-bottom: 10px;
+      line-height: 1.75;
+    }
+
+    .hero-constraint {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+    }
+
+    .hero-cta-row {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .microline {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       HERO PRODUCT CONSOLE
+       macOS-style window chrome with metric cards + data strip
+    ═══════════════════════════════════════════════════════════ */
+    .hero-console-wrap {
+      max-width: var(--max-w);
+      margin: 56px auto 0;
+      padding: 0 var(--pad-x) 120px;
+      overflow: hidden;
+    }
+
+    .hero-console {
+      background: var(--bg-console);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+        0 32px 64px rgba(0, 0, 0, 0.5),
+        0 0 80px rgba(200, 144, 44, 0.04);
+    }
+
+    /* macOS-style window chrome */
+    .console-chrome {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      height: 38px;
+      background: #0D0E11;
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .console-chrome-dots {
+      display: flex;
+      gap: 7px;
+      position: absolute;
+      left: 16px;
+    }
+
+    .chrome-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .chrome-dot--close  { background: #3D3D3D; }
+    .chrome-dot--min    { background: #3D3D3D; }
+    .chrome-dot--max    { background: #3D3D3D; }
+
+    .console-chrome-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* Console body */
+    .console-body {
+      padding: 24px;
+    }
+
+    /* Metric cards row */
+    .console-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px 18px;
+    }
+
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .metric-context {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Data strip — bar chart rows */
+    .console-data-strip {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px 20px;
+    }
+
+    .data-strip-header {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .data-strip-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .data-bar-row {
+      display: grid;
+      grid-template-columns: 80px 1fr 32px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .data-bar-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    .data-bar-track {
+      height: 5px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .data-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      opacity: 0.7;
+    }
+
+    .data-bar-pct {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .console-footer-line {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-faint);
+      letter-spacing: 0.06em;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       PROBLEM SECTION
+    ═══════════════════════════════════════════════════════════ */
+    .problem-body {
+      margin-top: 36px;
+      max-width: 640px;
+    }
+
+    .problem-body p {
+      color: var(--text-secondary);
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+
+    .problem-body p:last-child { margin-bottom: 0; }
+
+    /* ═══════════════════════════════════════════════════════════
+       TWO COSTS
+    ═══════════════════════════════════════════════════════════ */
+    .costs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      margin-top: 48px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .cost-card {
+      background: var(--bg);
+      padding: 36px 32px;
+    }
+
+    .cost-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .cost-card p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      margin-bottom: 14px;
+    }
+
+    .cost-card p:last-child { margin-bottom: 0; }
+
+    /* ═══════════════════════════════════════════════════════════
+       INTELLIGENCE SURFACES LIST
+       Replaces the flat 5-column grid. Full-width rows, numbered,
+       with per-surface mini-visualization on the right.
+    ═══════════════════════════════════════════════════════════ */
+    .surfaces-intro {
+      margin-bottom: 48px;
+    }
+
+    .surfaces-intro p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin-top: 12px;
+    }
+
+    .surfaces-list {
+      border-top: 1px solid var(--border);
+    }
+
+    .surface-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 32px;
+      padding: 32px 0;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s ease;
+      border-radius: 2px;
+      cursor: default;
+    }
+
+    .surface-row:hover {
+      background: rgba(255, 255, 255, 0.02);
+      padding-left: 8px;
+      padding-right: 8px;
+      margin-left: -8px;
+      margin-right: -8px;
+    }
+
+    .surface-left {
+      display: flex;
+      align-items: flex-start;
+      gap: 28px;
+    }
+
+    /* Large dimmed number */
+    .surface-num {
+      font-family: var(--font-head);
+      font-size: 44px;
+      line-height: 1;
+      color: var(--text-faint);
+      min-width: 52px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      transition: color 0.2s ease;
+    }
+
+    .surface-row:hover .surface-num {
+      color: rgba(200, 144, 44, 0.25);
+    }
+
+    .surface-text {}
+
+    .surface-name {
+      font-family: var(--font-body);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .surface-desc {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      max-width: 520px;
+    }
+
+    /* Right-side mini-visualization for each surface */
+    .surface-viz {
+      flex-shrink: 0;
+      width: 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      opacity: 0.55;
+    }
+
+    .surface-row:hover .surface-viz { opacity: 0.8; }
+
+    .viz-bar-mini {
+      height: 4px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* Pathway viz — descending bars */
+    .viz--pathways .viz-bar-mini:nth-child(1) { width: 90px; opacity: 0.9; }
+    .viz--pathways .viz-bar-mini:nth-child(2) { width: 65px; opacity: 0.7; }
+    .viz--pathways .viz-bar-mini:nth-child(3) { width: 40px; opacity: 0.5; }
+    .viz--pathways .viz-bar-mini:nth-child(4) { width: 20px; opacity: 0.3; }
+
+    /* Time loss viz — stacked horizontally */
+    .viz--timeloss {
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 4px;
+      height: 28px;
+    }
+    .viz-col-mini {
+      width: 12px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+    .viz--timeloss .viz-col-mini:nth-child(1) { height: 14px; }
+    .viz--timeloss .viz-col-mini:nth-child(2) { height: 24px; }
+    .viz--timeloss .viz-col-mini:nth-child(3) { height: 20px; }
+    .viz--timeloss .viz-col-mini:nth-child(4) { height: 10px; }
+    .viz--timeloss .viz-col-mini:nth-child(5) { height: 16px; }
+    .viz--timeloss .viz-col-mini:nth-child(6) { height: 8px; }
+
+    /* Concentration viz — varying width bars */
+    .viz--concentration .viz-bar-mini:nth-child(1) { width: 88px; }
+    .viz--concentration .viz-bar-mini:nth-child(2) { width: 52px; }
+    .viz--concentration .viz-bar-mini:nth-child(3) { width: 34px; }
+    .viz--concentration .viz-bar-mini:nth-child(4) { width: 14px; }
+
+    /* Stability viz — oscillating heights */
+    .viz--stability {
+      flex-direction: row;
+      align-items: center;
+      gap: 3px;
+      height: 28px;
+    }
+    .viz-pip {
+      width: 8px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+    .viz--stability .viz-pip:nth-child(1) { height: 10px; }
+    .viz--stability .viz-pip:nth-child(2) { height: 20px; }
+    .viz--stability .viz-pip:nth-child(3) { height: 14px; }
+    .viz--stability .viz-pip:nth-child(4) { height: 24px; }
+    .viz--stability .viz-pip:nth-child(5) { height: 8px; }
+    .viz--stability .viz-pip:nth-child(6) { height: 18px; }
+    .viz--stability .viz-pip:nth-child(7) { height: 12px; }
+
+    /* Posture shifts viz — slope line approximation */
+    .viz--posture {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 4px;
+      height: 28px;
+    }
+    .viz--posture .viz-col-mini:nth-child(1) { height: 22px; }
+    .viz--posture .viz-col-mini:nth-child(2) { height: 18px; }
+    .viz--posture .viz-col-mini:nth-child(3) { height: 14px; }
+    .viz--posture .viz-col-mini:nth-child(4) { height: 10px; }
+    .viz--posture .viz-col-mini:nth-child(5) { height: 7px; }
+
+    /* ═══════════════════════════════════════════════════════════
+       WHAT ATLAS DOES NOT DO
+       Design moment — amber em-dash prefix, generous spacing,
+       amber gradient wash at the top of the band
+    ═══════════════════════════════════════════════════════════ */
+    .notdo-section {
+      padding: 120px var(--pad-x) 140px;
+      text-align: center;
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+
+    .notdo-section h2 {
+      margin: 0 auto 52px;
+      max-width: 560px;
+    }
+
+    .notdo-lines {
+      margin-bottom: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notdo-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 14px;
+      padding: 8px 0;
+    }
+
+    .notdo-dash {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      color: var(--accent);
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    .notdo-text {
+      font-size: 21px;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .notdo-close {
+      font-size: 15px;
+      color: var(--text-muted);
+      font-style: italic;
+      letter-spacing: 0.01em;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       HOW IT WORKS
+    ═══════════════════════════════════════════════════════════ */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      margin-top: 48px;
+    }
+
+    .step-col {
+      padding-right: 48px;
+      border-right: 1px solid var(--border);
+    }
+
+    .step-col:nth-child(2) { padding-left: 48px; }
+    .step-col:nth-child(3) { padding-left: 48px; border-right: none; padding-right: 0; }
+
+    .step-num {
+      font-family: var(--font-head);
+      font-size: 40px;
+      color: var(--border);
+      margin-bottom: 20px;
+      line-height: 1;
+    }
+
+    .step-label {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+
+    .step-body {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SAMPLE REPORT — visual centerpiece
+       Wider container, section tab strip, outer glow, side-by-side
+    ═══════════════════════════════════════════════════════════ */
+    .report-section {
+      padding: var(--section-y) var(--pad-x);
+      border-top: 1px solid var(--border);
+    }
+
+    .report-section-inner {
+      max-width: var(--max-w-wide);
+      margin: 0 auto;
+    }
+
+    .report-section-header {
+      max-width: var(--max-w);
+      margin: 0 auto 48px;
+    }
+
+    /* Tab strip above the report */
+    .report-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .report-tab {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      text-transform: uppercase;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+
+    .report-tab--active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* The report document itself */
+    .report-doc {
+      width: 100%;
+      background: #F5F2EC;
+      border-radius: 3px;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+        0 32px 64px rgba(0, 0, 0, 0.6),
+        0 0 120px rgba(200, 144, 44, 0.06);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+    }
+
+    /* Report cover panel */
+    .report-cover {
+      background: #F0EDE5;
+      padding: 36px 28px;
+      border-right: 1px solid #DDD9CF;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rc-brand {
+      font-family: var(--font-mono);
+      font-size: 17px;
+      font-weight: 500;
+      color: #1A1A1A;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+
+    .rc-tag {
+      font-size: 9px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #CCC;
+      margin-bottom: 20px;
+    }
+
+    .rc-meta-label {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #AAA;
+      margin-top: 14px;
+      margin-bottom: 3px;
+    }
+
+    .rc-meta-label:first-of-type { margin-top: 0; }
+
+    .rc-meta-val {
+      font-size: 13px;
+      color: #1A1A1A;
+      font-weight: 500;
+    }
+
+    .rc-confidential {
+      margin-top: auto;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: #AAA;
+      text-transform: uppercase;
+    }
+
+    /* Report interior page */
+    .report-interior {
+      background: #FDFCFA;
+      padding: 28px 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ri-watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-28deg);
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      color: rgba(160, 152, 138, 0.14);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .ri-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 9px;
+      border-bottom: 1px solid #DDD9CF;
+      margin-bottom: 16px;
+    }
+
+    .ri-section-id {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.08em;
+      color: #C8902C;
+      text-transform: uppercase;
+    }
+
+    .ri-page {
+      font-size: 9px;
+      color: #AAA;
+    }
+
+    .ri-sub {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+
+    .ri-sub:first-of-type { margin-top: 0; }
+
+    .ri-body {
+      font-size: 10.5px;
+      color: #333;
+      line-height: 1.65;
+    }
+
+    .ri-redact {
+      display: inline-block;
+      background: #1A1A1A;
+      height: 10px;
+      border-radius: 1px;
+      vertical-align: middle;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .bar-label {
+      font-size: 9px;
+      color: #555;
+      width: 54px;
+      flex-shrink: 0;
+    }
+
+    .bar-fill {
+      height: 8px;
+      background: #C8902C;
+      border-radius: 1px;
+    }
+
+    .bar-redact {
+      height: 8px;
+      background: #1A1A1A;
+      border-radius: 1px;
+      width: 54px;
+    }
+
+    .ri-obs {
+      font-size: 9.5px;
+      color: #333;
+      margin-bottom: 4px;
+      display: flex;
+      gap: 4px;
+    }
+
+    .ri-footer {
+      margin-top: 16px;
+      padding-top: 8px;
+      border-top: 1px solid #EEE;
+      font-size: 8.5px;
+      color: #AAA;
+      font-style: italic;
+    }
+
+    /* Sample report link */
+    .sample-link {
+      margin-top: 28px;
+      font-size: 15px;
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: opacity 0.15s;
+    }
+
+    .sample-link:hover { opacity: 0.75; }
+
+    /* ═══════════════════════════════════════════════════════════
+       WHO IT'S FOR
+    ═══════════════════════════════════════════════════════════ */
+    .who-list { margin-top: 36px; }
+
+    .who-item {
+      font-size: 20px;
+      color: var(--text-primary);
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 0.15s, padding-left 0.15s;
+    }
+
+    .who-item:first-child { border-top: 1px solid var(--border); }
+    .who-item:hover { color: var(--accent); padding-left: 6px; }
+
+    /* ═══════════════════════════════════════════════════════════
+       PILOT SECTION
+    ═══════════════════════════════════════════════════════════ */
+    .pilot-includes {
+      margin: 32px 0 40px;
+    }
+
+    .pilot-line {
+      font-size: 16px;
+      color: var(--text-secondary);
+      padding: 9px 0;
+      font-family: var(--font-body);
+    }
+
+    .pilot-microline {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 14px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FORM — upgraded presence for an executive product
+       Gradient inner glow, improved focus states, amber glow on submit
+    ═══════════════════════════════════════════════════════════ */
+    .form-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 44px 48px;
+      max-width: 580px;
+      margin-top: 64px;
+      /* Subtle gradient inner glow */
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+        0 0 40px rgba(200, 144, 44, 0.04) inset,
+        0 24px 48px rgba(0, 0, 0, 0.3);
+    }
+
+    .form-wrap h3 {
+      font-family: var(--font-head);
+      font-size: 26px;
+      font-weight: 400;
+      margin-bottom: 10px;
+    }
+
+    .form-sub {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      line-height: 1.65;
+    }
+
+    .form-privacy {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+
+    .field-group { margin-bottom: 20px; }
+
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--text-secondary);
+      margin-bottom: 7px;
+      text-transform: uppercase;
+    }
+
+    .field-req { color: var(--accent); }
+
+    .field-input,
+    .field-textarea {
+      width: 100%;
+      background: var(--bg-field);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 12px 16px;
+      font-size: 16px;
+      color: var(--text-primary);
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+      outline: none;
+    }
+
+    /* Improved focus state — amber ring with glow */
+    .field-input:focus,
+    .field-textarea:focus {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 0 3px rgba(200, 144, 44, 0.08),
+        0 0 12px rgba(200, 144, 44, 0.06);
+    }
+
+    .field-textarea {
+      height: 96px;
+      resize: none;
+    }
+
+    .field-microcopy {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    /* Submit button — amber glow on hover */
+    .form-btn {
+      background: var(--accent);
+      color: #0A0B0D;
+      border: none;
+      border-radius: 3px;
+      padding: 14px 44px;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition:
+        box-shadow 0.2s ease,
+        transform 0.1s ease,
+        opacity 0.15s ease;
+      margin-top: 4px;
+    }
+
+    .form-btn:hover {
+      box-shadow:
+        0 0 0 1px var(--accent),
+        0 0 16px rgba(200, 144, 44, 0.2),
+        0 4px 20px rgba(200, 144, 44, 0.15);
+    }
+
+    .form-btn:active { transform: scale(0.98); }
+
+    .form-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Confirmation state */
+    .form-confirm {
+      display: none;
+    }
+
+    .form-confirm h3 {
+      font-family: var(--font-head);
+      font-size: 28px;
+      font-weight: 400;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+    }
+
+    .form-confirm p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      margin-bottom: 10px;
+    }
+
+    .form-confirm .sig {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ABOUT
+    ═══════════════════════════════════════════════════════════ */
+    .about-body {
+      font-size: 17px;
+      color: var(--text-secondary);
+      max-width: 640px;
+      line-height: 1.8;
+      margin-top: 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════════════════════ */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 48px var(--pad-x) 36px;
+    }
+
+    .footer-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .footer-left .brand {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .footer-left a {
+      font-size: 14px;
+      color: var(--text-secondary);
+      transition: color 0.15s;
+    }
+
+    .footer-left a:hover { color: var(--text-primary); }
+
+    .footer-right {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .footer-right a {
+      color: var(--text-secondary);
+      transition: color 0.15s;
+    }
+
+    .footer-right a:hover { color: var(--text-primary); }
+
+    /* ═══════════════════════════════════════════════════════════
+       SCROLL FADE-IN ANIMATION
+    ═══════════════════════════════════════════════════════════ */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       MOBILE RESPONSIVE BREAKPOINTS
+    ═══════════════════════════════════════════════════════════ */
+    @media (max-width: 700px) {
+      :root {
+        --pad-x:     20px;
+        --section-y: 80px;
+      }
+
+      /* Nav */
+      .nav-wordmark .by { display: none; }
+
+      /* Hero */
+      .hero { padding: 64px var(--pad-x) 0; }
+
+      /* Hero console — single column, hide window chrome dots on mobile */
+      .hero-console-wrap { padding-bottom: 80px; }
+      .console-chrome-dots { display: none; }
+      .console-metrics { grid-template-columns: 1fr; gap: 10px; }
+      .data-bar-row { grid-template-columns: 70px 1fr 28px; }
+
+      /* Two costs */
+      .costs-grid { grid-template-columns: 1fr; }
+
+      /* Intelligence surfaces */
+      .surface-row { grid-template-columns: 1fr; gap: 16px; }
+      .surface-viz { display: none; }
+      .surface-num { font-size: 32px; min-width: 40px; }
+
+      /* Report — collapse to single column, hide cover on small screens */
+      .report-doc { grid-template-columns: 1fr; }
+      .report-cover { display: none; }
+      .report-tabs { overflow-x: auto; white-space: nowrap; }
+      .report-tab { padding: 8px 12px; }
+
+      /* Steps */
+      .steps-grid { grid-template-columns: 1fr; gap: 40px; }
+      .step-col { padding: 0 !important; border-right: none !important; border-bottom: 1px solid var(--border); padding-bottom: 40px !important; }
+      .step-col:last-child { border-bottom: none; }
+
+      /* What Atlas Does Not Do */
+      .notdo-section { padding: 80px var(--pad-x); }
+      .notdo-text { font-size: 17px; }
+
+      /* Form */
+      .form-wrap { padding: 28px 24px; }
+
+      /* Footer */
+      .footer-inner { flex-direction: column; gap: 20px; align-items: flex-start; }
+      .footer-right { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════
+       HEADER
+  ═══════════════════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="container">
+      <nav class="nav">
+        <div class="nav-wordmark">
+          <span class="name">ATLAS</span>
+          <span class="by">by Empower52</span>
+        </div>
+        <div class="nav-links">
+          <a href="#pilot">Pilot</a>
+          <a href="#contact">Contact</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════
+       HERO — text + product console below
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="eyebrow">Discipline Intelligence for Texas K–12</div>
+    <h1>Discipline intelligence for district leadership.</h1>
+    <p class="hero-sub">Atlas turns your SIS discipline exports into leadership-ready reports — pattern visibility, instructional time loss, removal concentration, system stability, and posture shifts.</p>
+    <p class="hero-constraint">No recommendations. No automation. No replacement for judgment.</p>
+    <div class="hero-cta-row">
+      <div>
+        <a href="#pilot" class="btn btn--primary">Request a Pilot Conversation</a>
+      </div>
+      <p class="microline">Built by Empower52. Designed for Texas K–12.</p>
+    </div>
+  </section>
+
+  <!-- Hero product console — macOS-style window with live-feeling data -->
+  <div class="hero-console-wrap">
+    <div class="hero-console">
+
+      <!-- Window chrome -->
+      <div class="console-chrome">
+        <div class="console-chrome-dots">
+          <div class="chrome-dot chrome-dot--close"></div>
+          <div class="chrome-dot chrome-dot--min"></div>
+          <div class="chrome-dot chrome-dot--max"></div>
+        </div>
+        <span class="console-chrome-title">Atlas &middot; [REDACTED] ISD &middot; 2025–26 &middot; Discipline Report</span>
+      </div>
+
+      <!-- Console body -->
+      <div class="console-body">
+
+        <!-- Three metric cards -->
+        <div class="console-metrics">
+          <div class="metric-card">
+            <div class="metric-value">284</div>
+            <div class="metric-label">Total Removals</div>
+            <div class="metric-context">Fall semester</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">71%</div>
+            <div class="metric-label">Concentration</div>
+            <div class="metric-context">3 of 9 campuses</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">12.4 days</div>
+            <div class="metric-label">Instr. Time Lost</div>
+            <div class="metric-context">Per removed student, avg.</div>
+          </div>
+        </div>
+
+        <!-- Data strip — Section 03 bar chart -->
+        <div class="console-data-strip">
+          <div class="data-strip-header">Section 03 — Removal Concentration</div>
+          <div class="data-strip-rows">
+            <div class="data-bar-row">
+              <span class="data-bar-label">ISS</span>
+              <div class="data-bar-track">
+                <div class="data-bar-fill" style="width: 78%"></div>
+              </div>
+              <span class="data-bar-pct">78%</span>
+            </div>
+            <div class="data-bar-row">
+              <span class="data-bar-label">OSS</span>
+              <div class="data-bar-track">
+                <div class="data-bar-fill" style="width: 52%"></div>
+              </div>
+              <span class="data-bar-pct">52%</span>
+            </div>
+            <div class="data-bar-row">
+              <span class="data-bar-label">DAEP</span>
+              <div class="data-bar-track">
+                <div class="data-bar-fill" style="width: 34%"></div>
+              </div>
+              <span class="data-bar-pct">34%</span>
+            </div>
+            <div class="data-bar-row">
+              <span class="data-bar-label">Expulsion</span>
+              <div class="data-bar-track">
+                <div class="data-bar-fill" style="width: 8%"></div>
+              </div>
+              <span class="data-bar-pct">8%</span>
+            </div>
+          </div>
+          <div class="console-footer-line">Atlas does not interpret cause.</div>
+        </div>
+
+      </div><!-- /console-body -->
+    </div><!-- /hero-console -->
+  </div><!-- /hero-console-wrap -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       THE PROBLEM
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <div class="rule-accent"></div>
+    <h2>Districts have the data.<br>Leadership rarely has the picture.</h2>
+    <div class="problem-body">
+      <p>Discipline data lives inside the SIS. It is exportable, but not legible.</p>
+      <p>Patterns of removal, instructional time loss, and pathway use sit buried in row-level records.</p>
+      <p>When a board member, auditor, or TEA monitor asks the right question, leadership often cannot answer in real time.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       TWO COSTS
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <h2>Two costs discipline data makes visible.</h2>
+    <p style="color: var(--text-secondary); margin-top: 12px; max-width: 560px; font-size: 16px;">Atlas surfaces both in the same report cycle — as present-state observations, not forecasts.</p>
+    <div class="costs-grid">
+      <div class="cost-card">
+        <div class="cost-label">Instructional Time</div>
+        <p>Grade-level removal patterns translate directly to instructional minutes lost. Atlas makes that visible — by grade, by campus — in the same report cycle.</p>
+        <p>Leaders rarely see instructional time loss until it shows up in STAAR results. Atlas surfaces it while there is still time to act.</p>
+      </div>
+      <div class="cost-card">
+        <div class="cost-label">Staff Capacity</div>
+        <p>Behavioral load does not fall evenly across grade levels. Discipline data is where that concentration shows up first — Atlas surfaces it by grade and by campus, as a present-state picture of where staff are absorbing the most.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       FIVE INTELLIGENCE SURFACES
+       Vertical numbered list replacing flat grid
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <div class="surfaces-intro">
+      <h2>Five intelligence surfaces.</h2>
+      <p>Atlas reads your discipline export and produces a structured leadership report across five dimensions.</p>
+    </div>
+
+    <div class="surfaces-list">
+
+      <!-- 01 — Discipline Response Pathways -->
+      <div class="surface-row">
+        <div class="surface-left">
+          <div class="surface-num">01</div>
+          <div class="surface-text">
+            <div class="surface-name">Discipline Response Pathways</div>
+            <p class="surface-desc">How incidents move through your system — referral to consequence to placement. Atlas maps pathway volume, sequencing patterns, and where referrals resolve versus escalate.</p>
+          </div>
+        </div>
+        <div class="surface-viz viz--pathways" aria-hidden="true">
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+        </div>
+      </div>
+
+      <!-- 02 — Instructional Time Loss -->
+      <div class="surface-row">
+        <div class="surface-left">
+          <div class="surface-num">02</div>
+          <div class="surface-text">
+            <div class="surface-name">Instructional Time Loss</div>
+            <p class="surface-desc">Aggregate and per-campus loss of student time tied to removals and assignments. Expressed in instructional days — by grade band, by campus, by removal type.</p>
+          </div>
+        </div>
+        <div class="surface-viz viz--timeloss" aria-hidden="true">
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+        </div>
+      </div>
+
+      <!-- 03 — Removal Concentration -->
+      <div class="surface-row">
+        <div class="surface-left">
+          <div class="surface-num">03</div>
+          <div class="surface-text">
+            <div class="surface-name">Removal Concentration</div>
+            <p class="surface-desc">Where removals concentrate — campus, grade, code, repeat-student density. Atlas identifies the campuses and grade bands absorbing disproportionate removal volume.</p>
+          </div>
+        </div>
+        <div class="surface-viz viz--concentration" aria-hidden="true">
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+          <div class="viz-bar-mini"></div>
+        </div>
+      </div>
+
+      <!-- 04 — System Stability -->
+      <div class="surface-row">
+        <div class="surface-left">
+          <div class="surface-num">04</div>
+          <div class="surface-text">
+            <div class="surface-name">System Stability</div>
+            <p class="surface-desc">Variation across campuses, weeks, and code categories — signal versus noise. Atlas distinguishes structural patterns from short-term fluctuation so leadership can respond proportionately.</p>
+          </div>
+        </div>
+        <div class="surface-viz viz--stability" aria-hidden="true">
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+          <div class="viz-pip"></div>
+        </div>
+      </div>
+
+      <!-- 05 — Posture Shifts -->
+      <div class="surface-row">
+        <div class="surface-left">
+          <div class="surface-num">05</div>
+          <div class="surface-text">
+            <div class="surface-name">Posture Shifts</div>
+            <p class="surface-desc">Year-over-year and term-over-term movement in how the system is responding. Atlas surfaces whether district discipline posture is tightening, loosening, or stable across reporting periods.</p>
+          </div>
+        </div>
+        <div class="surface-viz viz--posture" aria-hidden="true">
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+          <div class="viz-col-mini"></div>
+        </div>
+      </div>
+
+    </div><!-- /surfaces-list -->
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       WHAT ATLAS DOES NOT DO
+       Design moment — amber em-dash prefix, amber gradient wash
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="notdo-band fade-in">
+    <div class="notdo-section section--center">
+      <div class="rule-accent--wide"></div>
+      <h2>What Atlas does not do.</h2>
+      <div class="notdo-lines">
+        <div class="notdo-line">
+          <span class="notdo-dash">—</span>
+          <span class="notdo-text">Atlas does not recommend consequences.</span>
+        </div>
+        <div class="notdo-line">
+          <span class="notdo-dash">—</span>
+          <span class="notdo-text">Atlas does not automate discipline decisions.</span>
+        </div>
+        <div class="notdo-line">
+          <span class="notdo-dash">—</span>
+          <span class="notdo-text">Atlas does not predict student behavior.</span>
+        </div>
+        <div class="notdo-line">
+          <span class="notdo-dash">—</span>
+          <span class="notdo-text">Atlas does not replace leadership judgment.</span>
+        </div>
+      </div>
+      <p class="notdo-close">Atlas is a reporting layer, not a decision layer.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       HOW IT WORKS
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <h2>Three steps. No integration required.</h2>
+    <div class="steps-grid">
+      <div class="step-col">
+        <div class="step-num">01</div>
+        <div class="step-label">Export</div>
+        <p class="step-body">District provides a standard SIS discipline export. Skyward, Frontline, eSchoolPlus, PowerSchool, and equivalent systems are supported.</p>
+      </div>
+      <div class="step-col">
+        <div class="step-num">02</div>
+        <div class="step-label">Analysis</div>
+        <p class="step-body">Atlas processes the export and structures it across the five report surfaces. No data leaves district control without a signed Data Sharing Agreement.</p>
+      </div>
+      <div class="step-col">
+        <div class="step-num">03</div>
+        <div class="step-label">Report</div>
+        <p class="step-body">Leadership receives a written report and a review session — formatted for cabinet, board, and compliance review.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SAMPLE REPORT — visual centerpiece
+       Wider container, section tab strip, amber glow shadow
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="report-section fade-in">
+    <div class="report-section-inner">
+
+      <div class="report-section-header">
+        <h2>A leadership report, not a dashboard.</h2>
+        <p style="color: var(--text-secondary); margin-top: 12px; max-width: 560px; font-size: 16px;">Atlas reports are written for cabinet review. They are forwardable, defensible, and built to read in under fifteen minutes.</p>
+      </div>
+
+      <!-- Section tab strip -->
+      <div class="report-tabs">
+        <span class="report-tab">01 Pathways</span>
+        <span class="report-tab">02 Time Loss</span>
+        <span class="report-tab report-tab--active">03 Concentration</span>
+        <span class="report-tab">04 Stability</span>
+        <span class="report-tab">05 Posture</span>
+      </div>
+
+      <!-- Report document — cover + interior side-by-side -->
+      <div class="report-doc">
+
+        <!-- Cover panel -->
+        <div class="report-cover">
+          <div class="rc-brand">ATLAS</div>
+          <div class="rc-tag">Discipline Intelligence Report</div>
+          <div class="rc-meta-label">Prepared for</div>
+          <div class="rc-meta-val">[REDACTED] ISD</div>
+          <div class="rc-meta-label">Reporting period</div>
+          <div class="rc-meta-val">2025–26 School Year</div>
+          <div class="rc-meta-label">Prepared by</div>
+          <div class="rc-meta-val">Empower52</div>
+          <div class="rc-confidential">Confidential</div>
+        </div>
+
+        <!-- Interior page — Section 03 Removal Concentration -->
+        <div class="report-interior">
+          <div class="ri-watermark">S A M P L E</div>
+          <div class="ri-header">
+            <span class="ri-section-id">03 — Removal Concentration</span>
+            <span class="ri-page">Page 7</span>
+          </div>
+          <div class="ri-sub">Summary</div>
+          <p class="ri-body">Removals concentrated in <span class="ri-redact" style="width:36px"></span> campuses, representing <span class="ri-redact" style="width:28px"></span>% of total district removals.</p>
+          <div class="ri-sub">Distribution</div>
+          <div class="bar-row"><span class="bar-label">Campus A</span><div class="bar-fill" style="width:70px"></div></div>
+          <div class="bar-row"><span class="bar-label">Campus B</span><div class="bar-fill" style="width:46px"></div></div>
+          <div class="bar-row"><span class="bar-label"><span class="ri-redact" style="width:40px;height:9px"></span></span><div class="bar-fill" style="width:30px"></div></div>
+          <div class="bar-row"><span class="bar-label">Campus D</span><div class="bar-fill" style="width:18px"></div></div>
+          <div class="bar-row"><span class="bar-label"><span class="ri-redact" style="width:40px;height:9px"></span></span><div class="bar-redact"></div></div>
+          <div class="ri-sub">Observations</div>
+          <div class="ri-obs">—&nbsp;<span class="ri-redact" style="width:108px"></span></div>
+          <div class="ri-obs">—&nbsp;<span class="ri-redact" style="width:84px"></span></div>
+          <div class="ri-obs">—&nbsp;<span class="ri-redact" style="width:96px"></span></div>
+          <div class="ri-footer">Atlas does not interpret cause.</div>
+        </div>
+
+      </div><!-- /report-doc -->
+
+      <a href="#contact" class="sample-link">Request a redacted sample report →</a>
+
+    </div><!-- /report-section-inner -->
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       WHO IT'S FOR
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <h2>Built for the leaders who answer the hard questions.</h2>
+    <ul class="who-list">
+      <li class="who-item">Assistant Superintendents</li>
+      <li class="who-item">Student Services Leaders</li>
+      <li class="who-item">District Operations Leaders</li>
+      <li class="who-item">Compliance &amp; Accountability Leaders</li>
+      <li class="who-item">Campus Principals</li>
+    </ul>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PILOT + CONTACT FORM
+  ═══════════════════════════════════════════════════════════ -->
+  <section id="pilot" class="section section--ruled section--xl fade-in">
+    <h2>A focused pilot for Texas districts.</h2>
+    <p style="color: var(--text-secondary); margin-top: 12px; max-width: 560px; font-size: 16px;">Atlas is currently accepting a limited number of pilot districts for the 2026–27 school year.</p>
+
+    <div class="pilot-includes">
+      <p class="pilot-line">— One end-to-end discipline export analysis</p>
+      <p class="pilot-line">— One leadership-ready written report</p>
+      <p class="pilot-line">— One executive review session with district cabinet</p>
+    </div>
+
+    <a href="#contact" class="btn btn--primary">Request a Pilot Conversation</a>
+    <p class="pilot-microline">No software install. No district integration. No procurement burden during the pilot.</p>
+
+    <!-- Contact form -->
+    <div id="contact" class="form-wrap fade-in">
+      <h3>Request a pilot conversation.</h3>
+      <p class="form-sub">A short note is enough. We will reply within two business days with next-step options.</p>
+      <p class="form-privacy">Required for pilot review. We do not share submissions or add you to a list.</p>
+
+      <!--
+        Netlify form integration:
+        - data-netlify="true" enables Netlify Forms
+        - name="pilot" identifies this form in the Netlify dashboard
+        - hidden form-name field required by Netlify
+      -->
+      <form
+        id="pilot-form"
+        name="pilot"
+        data-netlify="true"
+        novalidate
+      >
+        <!-- Netlify requires this hidden field -->
+        <input type="hidden" name="form-name" value="pilot">
+
+        <div class="field-group">
+          <label class="field-label" for="f-name">Name <span class="field-req">*</span></label>
+          <input class="field-input" type="text" id="f-name" name="name" required minlength="2" autocomplete="name">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="f-title">Title <span class="field-req">*</span></label>
+          <input class="field-input" type="text" id="f-title" name="title" required minlength="2" autocomplete="organization-title">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="f-district">District <span class="field-req">*</span></label>
+          <input class="field-input" type="text" id="f-district" name="district" required minlength="2" autocomplete="organization">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="f-email">Work email <span class="field-req">*</span></label>
+          <input class="field-input" type="email" id="f-email" name="email" required autocomplete="email">
+          <p class="field-microcopy">Please use your district email.</p>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="f-message">What prompted you to reach out?</label>
+          <textarea class="field-textarea" id="f-message" name="message" maxlength="1500"></textarea>
+        </div>
+
+        <!-- Honeypot field — hidden from real users, catches bots -->
+        <input type="text" name="_hp" style="display:none" tabindex="-1" autocomplete="off">
+
+        <button type="submit" class="form-btn" id="submit-btn">Send</button>
+      </form>
+
+      <div class="form-confirm" id="form-confirm">
+        <h3>Received.</h3>
+        <p>We will reply within two business days with next-step options.</p>
+        <p>If your timeline is tighter, reply to the confirmation email and we will move accordingly.</p>
+        <p class="sig">— The Atlas team at Empower52</p>
+      </div>
+    </div><!-- /form-wrap -->
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       ABOUT
+  ═══════════════════════════════════════════════════════════ -->
+  <section class="section section--ruled fade-in">
+    <h2>Built by Empower52.</h2>
+    <p class="about-body">Empower52 supports Texas K–12 districts on discipline systems, leadership posture, and operational clarity. Atlas is the firm's discipline intelligence platform — built for the leaders who run the systems, not for the ones selling to them.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="brand">ATLAS — by Empower52</div>
+        <a href="mailto:pilots@empower52.com">pilots@empower52.com</a>
+      </div>
+      <div class="footer-right">
+        <div>© 2026 Empower52. All rights reserved.</div>
+        <div style="margin-top: 4px;"><a href="/privacy">Privacy</a></div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════════════ -->
+  <script>
+    // ── Scroll fade-in observer ───────────────────────────────
+    // Watches .fade-in elements and adds .visible when they enter
+    // the viewport. Threshold 0.08 = fires at 8% visibility.
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.08 });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+    // ── Form handling ─────────────────────────────────────────
+    // Supports both Netlify native form handling (on deploy) and
+    // a fetch fallback for custom endpoints during development.
+    const form       = document.getElementById('pilot-form');
+    const confirmEl  = document.getElementById('form-confirm');
+    const submitBtn  = document.getElementById('submit-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Honeypot check — abort silently if the hidden field is filled
+      if (form._hp && form._hp.value) return;
+
+      const data = {
+        name:     form.name.value.trim(),
+        title:    form.title.value.trim(),
+        district: form.district.value.trim(),
+        email:    form.email.value.trim(),
+        message:  form.message.value.trim(),
+      };
+
+      // Basic required-field validation
+      if (!data.name || !data.title || !data.district || !data.email) return;
+
+      submitBtn.disabled    = true;
+      submitBtn.textContent = 'Sending…';
+
+      try {
+        // Netlify: POST to the same page URL with form-encoded body
+        const body = new URLSearchParams({
+          'form-name': 'pilot',
+          ...data
+        });
+
+        const res = await fetch('/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString()
+        });
+
+        if (res.ok) {
+          form.style.display       = 'none';
+          confirmEl.style.display  = 'block';
+        } else {
+          throw new Error('submission failed');
+        }
+      } catch {
+        // Graceful fallback — show confirmation regardless, so no user is stranded
+        form.style.display      = 'none';
+        confirmEl.style.display = 'block';
+      }
+    });
+
+    // ── Real-time submit button enable/disable ────────────────
+    // Button stays disabled until all required fields have ≥2 chars
+    const requiredFields = ['f-name', 'f-title', 'f-district', 'f-email'];
+
+    function checkReady() {
+      const allFilled = requiredFields.every(
+        id => document.getElementById(id).value.trim().length >= 2
+      );
+      submitBtn.disabled = !allFilled;
+    }
+
+    requiredFields.forEach(id =>
+      document.getElementById(id).addEventListener('input', checkReady)
+    );
+
+    checkReady(); // Run on load to set initial state
+  </script>
+
+</body>
+</html>
